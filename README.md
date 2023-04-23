@@ -1,1 +1,1 @@
-# dsml
+# A Distributed State Management Library
