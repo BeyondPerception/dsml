@@ -8,5 +8,5 @@ include_directories(include/)
 
 add_library(dsml src/dsml.cpp)
 
-add_executable(runner runner.cpp)
-target_link_libraries(runner dsml)
+add_executable(demo demo/demo.cpp)
+target_link_libraries(demo dsml)
