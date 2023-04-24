@@ -2,7 +2,6 @@
 
 DSML::DSML(std::string config)
 {
-    
 }
 
 int DSML::register_owner(std::string program_name, std::string program_ip)
@@ -13,7 +12,7 @@ int DSML::register_owner(std::string program_name, std::string program_ip)
 template <typename T>
 inline T DSML::get(std::string var)
 {
-    return T();
+    return *static_cast<T *>(vars[var]);
 }
 
 template <typename T>

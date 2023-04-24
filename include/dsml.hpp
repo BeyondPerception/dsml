@@ -1,4 +1,7 @@
+#pragma once
+
 #include <string>
+#include <unordered_map>
 
 class DSML
 {
@@ -14,6 +17,8 @@ public:
     void set(std::string var, T value);
 
 private:
+    std::unordered_map<std::string, void *> vars;
+
     template <typename T>
     void create(std::string var);
 
