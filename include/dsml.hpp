@@ -3,10 +3,12 @@
 #include <string>
 #include <unordered_map>
 
-class DSML
+namespace dsml {
+
+class State
 {
 public:
-    DSML(std::string config);
+    State(std::string config);
 
     int register_owner(std::string variable_owner, std::string location);
 
@@ -27,3 +29,15 @@ private:
     template <typename T>
     void create(std::string var);
 };
+
+class Variable {
+
+    
+
+private:
+    void* data;
+
+
+};
+
+}
