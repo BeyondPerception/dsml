@@ -10,7 +10,7 @@ class State
 public:
     State(std::string config);
 
-    int register_owner(std::string variable_owner, std::string location);
+    int register_owner(std::string variable_owner, std::string owner_ip);
 
     int register_owner(std::string variable_owner, int socket);
 
@@ -18,13 +18,15 @@ public:
     T get(std::string var);
 
     template <typename T>
-    void get(std::string var, T& valueRet);
+    void get(std::string var, T &value_ret);
 
     template <typename T>
     void set(std::string var, T value);
 
 private:
-    std::unordered_map<std::string, void*> vars;
+    std::unordered_map<std::string, void *> vars;
+
+    void process_var(std::string var, std::string type, std::string owner);
 
     template <typename T>
     void create(std::string var);
@@ -32,7 +34,7 @@ private:
 
 class Variable {
 
-    
+
 
 private:
     void* data;
