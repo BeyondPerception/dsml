@@ -2,6 +2,6 @@
 
 int main(int argc, char *argv[])
 {
-    DSML dsml = DSML("config.tsv");
+    DSML dsml = DSML("../demo/config.tsv");
     return 0;
 }
