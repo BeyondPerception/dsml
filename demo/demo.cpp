@@ -4,7 +4,7 @@
 
 int main(int argc, char *argv[])
 {
-    dsml::State dsml ("../demo/config.tsv", "CN");
+    dsml::State dsml("../demo/config.tsv", "CN");
 
     dsml.set("TEST1", (int8_t)-128);
     dsml.set("TEST2", (uint8_t)255);
