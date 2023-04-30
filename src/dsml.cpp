@@ -1,3 +1,5 @@
+#include <iostream>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 
@@ -9,8 +11,11 @@
 
 using namespace dsml;
 
-State::State(std::string config)
+State::State(std::string config, std::string program_name) : self(program_name)
 {
+    if (std::filesystem::exists(config) == false)
+        throw std::runtime_error("Configuration file does not exist.");
+
     std::ifstream config_file(config);
     std::string line;
     int i = 1;
@@ -147,7 +152,6 @@ void State::create_var(std::string var, Type type, std::string owner, bool is_ar
     v.is_array = is_array;
     v.owner = owner;
     v.size = 0;
-    v.owner_ip = "";
     v.owner_socket = -1;
     if (!is_array)
     {

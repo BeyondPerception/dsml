@@ -10,7 +10,7 @@ namespace dsml {
 class State
 {
 public:
-    State(std::string config);
+    State(std::string config, std::string program_name);
 
     ~State();
 
@@ -38,6 +38,8 @@ public:
     }
 
 private:
+    std::string self;
+
     enum Type
     {
         INT8, INT16, INT32, INT64, UINT8, UINT16, UINT32, UINT64, STRING
@@ -60,7 +62,6 @@ private:
         bool is_array;
         int size; // if isArray, then the number of elements in the array.
         std::string owner;
-        std::string owner_ip;
         int owner_socket;
         void* data;
     };
@@ -77,7 +78,7 @@ private:
             throw std::runtime_error("Variable " + var + " does not exist.");
         }
 
-        if (vars[var].owner_socket < 0)
+        if (vars[var].owner_socket < 0 && vars[var].owner != self)
         {
             throw std::runtime_error("Variable " + var + " has no owner registered.");
         }
