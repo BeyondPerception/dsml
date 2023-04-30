@@ -22,18 +22,13 @@ namespace dsml
         T get(std::string var)
         {
             check_var<T>(var);
-
             return *static_cast<T *>(vars[var].data);
         }
-
-        // template <typename T>
-        // void get(std::string var, T &value_ret);
 
         template <typename T>
         void set(std::string var, T value)
         {
             check_var<T>(var);
-
             *static_cast<T *>(vars[var].data) = value;
         }
 
@@ -50,19 +45,21 @@ namespace dsml
             UINT16,
             UINT32,
             UINT64,
-            STRING
+            STRING,
         };
 
-        // Map from string Type to Type enum.
-        std::unordered_map<std::string, Type> type_map = {{"INT8", INT8},
-                                                          {"INT16", INT16},
-                                                          {"INT32", INT32},
-                                                          {"INT64", INT64},
-                                                          {"UINT8", UINT8},
-                                                          {"UINT16", UINT16},
-                                                          {"UINT32", UINT32},
-                                                          {"UINT64", UINT64},
-                                                          {"STRING", STRING}};
+        // Maps a string to a `Type` enum.
+        std::unordered_map<std::string, Type> type_map = {
+            {"INT8", INT8},
+            {"INT16", INT16},
+            {"INT32", INT32},
+            {"INT64", INT64},
+            {"UINT8", UINT8},
+            {"UINT16", UINT16},
+            {"UINT32", UINT32},
+            {"UINT64", UINT64},
+            {"STRING", STRING},
+        };
 
         struct Variable
         {
