@@ -1,84 +1,191 @@
 #include <fstream>
 #include <sstream>
 
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
 #include <dsml.hpp>
 
-void dsml::State::process_var(std::string var, std::string type, std::string owner)
-{
-    if (type == "INT8")
-    {
-        create<int8_t>(var);
-    }
-    else if (type == "INT16")
-    {
-        create<int16_t>(var);
-    }
-    else if (type == "INT32")
-    {
-        create<int32_t>(var);
-    }
-    else if (type == "INT64")
-    {
-        create<int64_t>(var);
-    }
-    else if (type == "UINT8")
-    {
-        create<uint8_t>(var);
-    }
-    else if (type == "UINT16")
-    {
-        create<uint16_t>(var);
-    }
-    else if (type == "UINT32")
-    {
-        create<uint32_t>(var);
-    }
-    else if (type == "UINT64")
-    {
-        create<uint64_t>(var);
-    }
-    else
-    {
-        throw std::runtime_error("Invalid type in configuration file.");
-    }
-}
+using namespace dsml;
 
-dsml::State::State(std::string config)
+State::State(std::string config)
 {
     std::ifstream config_file(config);
     std::string line;
+    int i = 1;
     while (std::getline(config_file, line))
     {
-        std::istringstream iss(line);
-        std::string var, type, owner;
-
-        if (!(iss >> var >> type >> owner))
+        // Skip comment lines and empty lines.
+        if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
         {
-            throw std::runtime_error("Invalid line in configuration file.");
-            break;
+            continue;
         }
 
-        process_var(var, type, owner);
+        std::istringstream iss(line);
+        std::string var, type, owner, is_array;
+
+        if (!(iss >> var >> type >> owner >> is_array))
+        {
+            throw std::runtime_error("Invalid line in configuration file on line " + std::to_string(i));
+        }
+        if (is_array != "true" && is_array != "false")
+        {
+            throw std::runtime_error("Invalid array specification in configuration file on line " + std::to_string(i));
+        }
+        if (type_map.find(type) == type_map.end())
+        {
+            throw std::runtime_error("Invalid type in configuration file on line " + std::to_string(i));
+        }
+
+        create_var(var, type_map[type], owner, is_array == "true");
+        i++;
     }
 }
 
-int dsml::State::register_owner(std::string program_name, std::string program_ip)
+State::~State()
 {
+    for (auto &var : vars)
+    {
+        switch (var.second.type)
+        {
+            case INT8:
+                if (var.second.is_array)
+                    delete[] static_cast<int8_t*>(var.second.data);
+                else
+                    delete static_cast<int8_t*>(var.second.data);
+                break;
+            case INT16:
+                if (var.second.is_array)
+                    delete[] static_cast<int16_t*>(var.second.data);
+                else
+                    delete static_cast<int16_t*>(var.second.data);
+                break;
+            case INT32:
+                if (var.second.is_array)
+                    delete[] static_cast<int32_t*>(var.second.data);
+                else
+                    delete static_cast<int32_t*>(var.second.data);
+                break;
+            case INT64:
+                if (var.second.is_array)
+                    delete[] static_cast<int64_t*>(var.second.data);
+                else
+                    delete static_cast<int64_t*>(var.second.data);
+                break;
+            case UINT8:
+                if (var.second.is_array)
+                    delete[] static_cast<uint8_t*>(var.second.data);
+                else
+                    delete static_cast<uint8_t*>(var.second.data);
+                break;
+            case UINT16:
+                if (var.second.is_array)
+                    delete[] static_cast<uint16_t*>(var.second.data);
+                else
+                    delete static_cast<uint16_t*>(var.second.data);
+                break;
+            case UINT32:
+                if (var.second.is_array)
+                    delete[] static_cast<uint32_t*>(var.second.data);
+                else
+                    delete static_cast<uint32_t*>(var.second.data);
+                break;
+            case UINT64:
+                if (var.second.is_array)
+                    delete[] static_cast<uint64_t*>(var.second.data);
+                else
+                    delete static_cast<uint64_t*>(var.second.data);
+                break;
+        }
+    }
+}
+
+int State::register_owner(std::string variable_owner, int socket)
+{
+    for (auto &var : vars)
+    {
+        if (var.second.owner == variable_owner)
+        {
+            var.second.owner_socket = socket;
+        }
+    }
     return 0;
 }
 
-template <typename T>
-inline T dsml::State::get(std::string var)
+int State::register_owner(std::string variable_owner, std::string owner_ip, int owner_port)
 {
-    return *static_cast<T *>(vars[var]);
+    // Connect to ip/port.
+    int sock;
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        return sock;
+    }
+
+    struct sockaddr_in serv_addr;
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(owner_port);
+    
+    int ret;
+    if ((ret = inet_pton(AF_INET, owner_ip.c_str(), &serv_addr.sin_addr)) <= 0)
+    {
+        return ret;
+    }
+
+    if ((ret = connect(sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) < 0)
+    {
+        return ret;
+    }
+
+    return register_owner(variable_owner, sock);
 }
 
-template <typename T>
-void dsml::State::set(std::string var, T value)
+void State::create_var(std::string var, Type type, std::string owner, bool is_array)
 {
-}
-
-template <typename T>
-void dsml::State::create(std::string var)
-{
+    Variable v;
+    v.type = type;
+    v.is_array = is_array;
+    v.owner = owner;
+    v.size = 0;
+    v.owner_ip = "";
+    v.owner_socket = -1;
+    if (!is_array)
+    {
+        switch (type)
+        {
+            case INT8:
+                v.data = new int8_t;
+                break;
+            case INT16:
+                v.data = new int16_t;
+                break;
+            case INT32:
+                v.data = new int32_t;
+                break;
+            case INT64:
+                v.data = new int64_t;
+                break;
+            case UINT8:
+                v.data = new uint8_t;
+                break;
+            case UINT16:
+                v.data = new uint16_t;
+                break;
+            case UINT32:
+                v.data = new uint32_t;
+                break;
+            case UINT64:
+                v.data = new uint64_t;
+                break;
+            default:
+                v.data = nullptr;
+        }
+    }
+    else
+    {  
+        if (v.type == STRING)
+            throw std::runtime_error("Invalid line in configuration file. Cannot have array of strings.");
+        v.data = nullptr;
+    }
+    vars[var] = v;
 }
