@@ -7,94 +7,109 @@
 #include <unordered_map>
 #include <vector>
 
-namespace dsml {
-
-class State
+namespace dsml
 {
-public:
-    State(std::string config, std::string program_name);
-
-    ~State();
-
-    int register_owner(std::string variable_owner, std::string owner_ip, int owner_port);
-
-    int register_owner(std::string variable_owner, int socket);
-
-    template <typename T>
-    T get(std::string var)
+    class State
     {
-        check_var<T>(var);
+    public:
+        State(std::string config, std::string program_name, int port);
 
-        return *static_cast<T*>(vars[var].data);
-    }
+        ~State();
 
-    // template <typename T>
-    // void get(std::string var, T &value_ret);
+        int register_owner(std::string variable_owner, std::string owner_ip, int owner_port);
 
-    template <typename T>
-    void set(std::string var, T value)
-    {
-        check_var<T>(var);
+        int register_owner(std::string variable_owner, int socket);
 
-        *static_cast<T*>(vars[var].data) = value;
-    }
-
-private:
-    std::string self;
-
-    std::atomic<bool> recv_thread_running;
-
-    std::thread recvThread;
-
-    int server_socket;
-
-    enum Type
-    {
-        INT8, INT16, INT32, INT64, UINT8, UINT16, UINT32, UINT64, STRING
-    };
-
-    // Map from string Type to Type enum.
-    std::unordered_map<std::string, Type> type_map = {{"INT8", INT8}, 
-                                                      {"INT16", INT16},
-                                                      {"INT32", INT32}, 
-                                                      {"INT64", INT64}, 
-                                                      {"UINT8", UINT8}, 
-                                                      {"UINT16", UINT16}, 
-                                                      {"UINT32", UINT32}, 
-                                                      {"UINT64", UINT64}, 
-                                                      {"STRING", STRING}};
-  
-    struct Variable
-    {
-        Type type;
-        bool is_array;
-        int size; // if isArray, then the number of elements in the array.
-        std::string owner;
-        int owner_socket;
-        void* data;
-    };
-
-    std::unordered_map<std::string, Variable> vars;
-
-    void create_var(std::string var, Type type, std::string owner, bool is_array);
-
-    template <typename T>
-    void check_var(std::string var)
-    {
-        if (vars.find(var) == vars.end())
+        template <typename T>
+        T get(std::string var)
         {
-            throw std::runtime_error("Variable " + var + " does not exist.");
+            check_var<T>(var);
+            return *static_cast<T *>(vars[var].data);
         }
 
-        if (vars[var].owner_socket < 0 && vars[var].owner != self)
+        template <typename T>
+        void set(std::string var, T value)
         {
-            throw std::runtime_error("Variable " + var + " has no owner registered.");
+            check_var<T>(var);
+            *static_cast<T *>(vars[var].data) = value;
         }
 
-        Variable v = vars[var];
+    private:
+        std::string self;
 
-        switch(v.type)
+        std::atomic<bool> recv_thread_running;
+
+        std::atomic<bool> accept_thread_running;
+
+        std::thread recvThread;
+
+        std::thread acceptThread;
+
+        int server_socket;
+
+        enum Type
         {
+            INT8,
+            INT16,
+            INT32,
+            INT64,
+            UINT8,
+            UINT16,
+            UINT32,
+            UINT64,
+            STRING,
+        };
+
+        uint8_t type_size(Type type);
+
+        // Maps a string to a `Type` enum.
+        std::unordered_map<std::string, Type> type_map = {
+            {"INT8", INT8},
+            {"INT16", INT16},
+            {"INT32", INT32},
+            {"INT64", INT64},
+            {"UINT8", UINT8},
+            {"UINT16", UINT16},
+            {"UINT32", UINT32},
+            {"UINT64", UINT64},
+            {"STRING", STRING},
+        };
+
+        struct Variable
+        {
+            Type type;
+            bool is_array;
+            int size; // if isArray, then the number of elements in the array.
+            std::string owner;
+            int owner_socket;
+            void *data;
+        };
+
+        std::unordered_map<std::string, Variable> vars;
+
+        void create_var(std::string var, Type type, std::string owner, bool is_array);
+
+        int receive_message(int socket);
+
+        int send_message(int socket, std::string var);
+
+        template <typename T>
+        void check_var(std::string var)
+        {
+            if (vars.find(var) == vars.end())
+            {
+                throw std::runtime_error("Variable " + var + " does not exist.");
+            }
+
+            if (vars[var].owner_socket < 0 && vars[var].owner != self)
+            {
+                throw std::runtime_error("Variable " + var + " has no owner registered.");
+            }
+
+            Variable v = vars[var];
+
+            switch (v.type)
+            {
             case INT8:
                 if (v.is_array)
                 {
@@ -193,12 +208,11 @@ private:
                 break;
             case STRING:
                 if (!std::is_same_v<T, uint64_t>)
-                        throw std::runtime_error("Variable '" + var + "' is of type std::string.");
+                    throw std::runtime_error("Variable '" + var + "' is of type std::string.");
                 break;
             default:
                 break;
+            }
         }
-    }
-};
-
+    };
 }
