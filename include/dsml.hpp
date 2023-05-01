@@ -23,15 +23,28 @@ namespace dsml
         template <typename T>
         T get(std::string var)
         {
-            check_var<T>(var);
+            check_var_type<T>(var);
             return *static_cast<T *>(vars[var].data);
         }
 
         template <typename T>
         void set(std::string var, T value)
         {
-            check_var<T>(var);
+            check_var_type<T>(var);
+
+            // Check if this program owns the variable.
+            if (self != vars[var].owner)
+            {
+                throw std::runtime_error("Variable " + var + " is not owned by this program.");
+            }
+
             *static_cast<T *>(vars[var].data) = value;
+
+            // Send the message to all subscribers.
+            for (auto &socket : subscriber_list[var])
+            {
+                send_message(socket, var);
+            }
         }
 
     private:
@@ -49,7 +62,7 @@ namespace dsml
 
         std::vector<int> socket_list;
 
-        std::unordered_map<std::string, int> subscriber_list;
+        std::unordered_map<std::string, std::vector<int>> subscriber_list;
 
         enum Type
         {
@@ -93,12 +106,12 @@ namespace dsml
 
         void create_var(std::string var, Type type, std::string owner, bool is_array);
 
-        int receive_message(int socket);
+        int recv_message(int socket);
 
         int send_message(int socket, std::string var);
 
         template <typename T>
-        void check_var(std::string var)
+        void check_var_type(std::string var)
         {
             if (vars.find(var) == vars.end())
             {

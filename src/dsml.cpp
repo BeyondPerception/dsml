@@ -90,7 +90,7 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
                            
                     }
                     if (pfds[i].revents & POLLIN) {
-                        receive_message(pfds[i].fd);
+                        recv_message(pfds[i].fd);
                     }
                 }
 
@@ -238,7 +238,7 @@ uint8_t State::type_size(Type type)
     }
 }
 
-int State::receive_message(int socket)
+int State::recv_message(int socket)
 {
     size_t var_name_size, var_data_size;
     std::string var;
