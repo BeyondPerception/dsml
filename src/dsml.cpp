@@ -9,6 +9,12 @@
 
 #include <dsml.hpp>
 
+// MAC and Linux have different names for telling the OS that you have more
+// data to send.
+#ifdef __linux__
+#define MSG_HAVEMORE MSG_MORE
+#endif
+
 using namespace dsml;
 
 State::State(std::string config, std::string program_name) : self(program_name)
@@ -192,4 +198,74 @@ void State::create_var(std::string var, Type type, std::string owner, bool is_ar
         v.data = nullptr;
     }
     vars[var] = v;
+}
+
+uint8_t State::type_size(Type type)
+{
+    switch (type)
+    {
+    case INT8:
+        return sizeof(int8_t);
+    case INT16:
+        return sizeof(int16_t);
+    case INT32:
+        return sizeof(int32_t);
+    case INT64:
+        return sizeof(int64_t);
+    case UINT8:
+        return sizeof(uint8_t);
+    case UINT16:
+        return sizeof(uint16_t);
+    case UINT32:
+        return sizeof(uint32_t);
+    case UINT64:
+        return sizeof(uint64_t);
+    case STRING:
+        return sizeof(char);
+    default:
+        throw std::runtime_error("Invalid type.");
+    }
+}
+
+int State::receive_message(int socket)
+{
+    return 0;
+}
+
+int State::send_message(int socket, std::string var)
+{
+    // Check if the variable exists.
+    if (vars.find(var) == vars.end())
+    {
+        return -1;
+    }
+
+    size_t var_size = sizeof(var), data_size = vars[var].size * type_size(vars[var].type);
+    int err;
+
+    // Send the size of the variable name.
+    if ((err = send(socket, &var_size, sizeof(var_size), MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the variable name.
+    if ((err = send(socket, &var, var_size, MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the size of the data.
+    if ((err = send(socket, &data_size, sizeof(data_size), MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the data.
+    if ((err = send(socket, vars[var].data, data_size, 0)) < 0)
+    {
+        return err;
+    }
+
+    return 0;
 }

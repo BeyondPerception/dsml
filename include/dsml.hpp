@@ -48,6 +48,8 @@ namespace dsml
             STRING,
         };
 
+        uint8_t type_size(Type type);
+
         // Maps a string to a `Type` enum.
         std::unordered_map<std::string, Type> type_map = {
             {"INT8", INT8},
@@ -74,6 +76,10 @@ namespace dsml
         std::unordered_map<std::string, Variable> vars;
 
         void create_var(std::string var, Type type, std::string owner, bool is_array);
+
+        int receive_message(int socket);
+
+        int send_message(int socket, std::string var);
 
         template <typename T>
         void check_var(std::string var)
