@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #include <dsml.hpp>
 
@@ -229,6 +230,53 @@ uint8_t State::type_size(Type type)
 
 int State::receive_message(int socket)
 {
+    size_t var_name_size, var_data_size;
+    std::string var;
+    int err;
+
+    // Read the size of the variable name.
+    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) < 0)
+    {
+        return err;
+    }
+
+    // Read the variable name.
+    var.resize(var_name_size);
+    if ((err = read(socket, &var, var_name_size)) < 0)
+    {
+        return err;
+    }
+
+    // Check if the variable exists.
+    if (vars.find(var) == vars.end())
+    {
+        return -1;
+    }
+
+    // Free the old data.
+    if (vars[var].data != nullptr)
+    {
+        free(vars[var].data);
+    }
+
+    // Allocate memory for the new data.
+    vars[var].data = malloc(var_data_size);
+
+    // Read the size of the data.
+    if ((err = read(socket, &var_data_size, sizeof(var_data_size))) < 0)
+    {
+        return err;
+    }
+
+    // Read the data.
+    if ((err = read(socket, vars[var].data, var_data_size)) < 0)
+    {
+        return err;
+    }
+
+    // Update the size of the variable.
+    vars[var].size = var_data_size / type_size(vars[var].type);
+
     return 0;
 }
 
@@ -240,29 +288,30 @@ int State::send_message(int socket, std::string var)
         return -1;
     }
 
-    size_t var_size = sizeof(var), data_size = vars[var].size * type_size(vars[var].type);
+    size_t var_name_size = sizeof(var),
+           var_data_size = vars[var].size * type_size(vars[var].type);
     int err;
 
     // Send the size of the variable name.
-    if ((err = send(socket, &var_size, sizeof(var_size), MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE)) < 0)
     {
         return err;
     }
 
     // Send the variable name.
-    if ((err = send(socket, &var, var_size, MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var, var_name_size, MSG_HAVEMORE)) < 0)
     {
         return err;
     }
 
     // Send the size of the data.
-    if ((err = send(socket, &data_size, sizeof(data_size), MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var_data_size, sizeof(var_data_size), MSG_HAVEMORE)) < 0)
     {
         return err;
     }
 
     // Send the data.
-    if ((err = send(socket, vars[var].data, data_size, 0)) < 0)
+    if ((err = send(socket, vars[var].data, var_data_size, 0)) < 0)
     {
         return err;
     }
