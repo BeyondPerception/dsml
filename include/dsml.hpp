@@ -64,7 +64,7 @@ namespace dsml
 
         std::unordered_map<std::string, std::vector<int>> subscriber_list;
 
-        enum Type
+        enum Type : uint8_t
         {
             INT8,
             INT16,
@@ -77,7 +77,7 @@ namespace dsml
             STRING,
         };
 
-        uint8_t type_size(Type type);
+        size_t type_size(Type type);
 
         // Maps a string to a `Type` enum.
         std::unordered_map<std::string, Type> type_map = {
@@ -109,6 +109,8 @@ namespace dsml
         int recv_message(int socket);
 
         int send_message(int socket, std::string var);
+
+        int accept_connection();
 
         template <typename T>
         void check_var_type(std::string var)

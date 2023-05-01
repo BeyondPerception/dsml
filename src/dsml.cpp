@@ -14,18 +14,19 @@
 // MAC and Linux have different names for telling the OS that you have more
 // data to send.
 #ifdef __linux__
-#define MSG_HAVEMORE MSG_MORE
+    #define MSG_HAVEMORE MSG_MORE
 #endif
 
 using namespace dsml;
 
 State::State(std::string config, std::string program_name, int port = 0) : self(program_name)
 {
-    if (std::filesystem::exists(config) == false)
+    if (!std::filesystem::exists(config))
+    {
         throw std::runtime_error("Configuration file does not exist.");
+    }
 
-    bool needs_socket;
-    bool needs_recv;
+    bool needs_socket, needs_recv;
 
     std::ifstream config_file(config);
     std::string line;
@@ -35,6 +36,7 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         // Skip comment lines and empty lines.
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
         {
+            ++i;
             continue;
         }
 
@@ -58,38 +60,40 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         {
             needs_socket = true;
         }
-
-        if (owner != self)
+        else
         {
             needs_recv = true;
         }
 
         create_var(var, type_map[type], owner, is_array == "true");
-        i++;
+        ++i;
     }
 
     if (needs_recv)
     {
         recv_thread_running = true;
-        recv_thread = std::thread([this]() {
+        recv_thread = std::thread([this]()
+        {
             while (recv_thread_running)
             {
                 // Setup poll structs
-                pollfd* pfds = new pollfd[socket_list.size()];
-                for (int i = 0; i < socket_list.size(); i++) {
+                pollfd *pfds = new pollfd[socket_list.size()];
+                for (int i = 0; i < socket_list.size(); i++)
+                {
                     pfds[i].fd = socket_list[i];
                     pfds[i].events = POLLIN;
                 }
 
                 int ret = poll(pfds, socket_list.size(), -1);
 
-                for (int i = 0; i < socket_list.size(); i++) {
+                for (int i = 0; i < socket_list.size(); i++)
+                {
                     // Check if socket available is wakeup socket.
                     if (i == 0)
                     {
-                           
                     }
-                    if (pfds[i].revents & POLLIN) {
+                    if (pfds[i].revents & POLLIN)
+                    {
                         recv_message(pfds[i].fd);
                     }
                 }
@@ -127,13 +131,33 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         }
 
         accept_thread_running = true;
-        accept_thread = std::thread([this]() {
+        accept_thread = std::thread([this]()
+        {
             while (accept_thread_running)
             {
                 accept_connection();
             }
         });
     }
+}
+
+int State::accept_connection()
+{
+    struct sockaddr_in addr;
+    size_t addr_len = sizeof(addr);
+
+    // Accept connection.
+    int new_socket = accept(server_socket, (struct sockaddr *)&addr, (socklen_t *)&addr_len);
+    if (new_socket < 0)
+    {
+        perror("accept()");
+        return new_socket;
+    }
+
+    // Add socket to list.
+    socket_list.push_back(new_socket);
+
+    return 0;
 }
 
 State::~State()
@@ -192,26 +216,26 @@ int State::register_owner(std::string variable_owner, std::string owner_ip, int 
 
 void State::create_var(std::string var, Type type, std::string owner, bool is_array)
 {
-    Variable v;
-    v.type = type;
-    v.is_array = is_array;
-    v.owner = owner;
-    v.size = 0;
-    v.owner_socket = -1;
+    Variable v = {type, is_array, 0, owner, -1, nullptr};
+
     if (!is_array)
     {
-        v.data = malloc(type_size(type));        
+        v.data = malloc(type_size(type));
     }
     else
     {
         if (v.type == STRING)
+        {
             throw std::runtime_error("Invalid line in configuration file. Cannot have array of strings.");
+        }
+
         v.data = nullptr;
     }
+
     vars[var] = v;
 }
 
-uint8_t State::type_size(Type type)
+size_t State::type_size(Type type)
 {
     switch (type)
     {
@@ -264,10 +288,7 @@ int State::recv_message(int socket)
     }
 
     // Free the old data.
-    if (vars[var].data != nullptr)
-    {
-        free(vars[var].data);
-    }
+    free(vars[var].data);
 
     // Allocate memory for the new data.
     vars[var].data = malloc(var_data_size);
