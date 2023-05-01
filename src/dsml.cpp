@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <poll.h>
 
 #include <dsml.hpp>
 
@@ -70,10 +71,30 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
     if (needs_recv)
     {
         recv_thread_running = true;
-        recvThread = std::thread([this]() {
+        recv_thread = std::thread([this]() {
             while (recv_thread_running)
             {
-                recv_message();
+                // Setup poll structs
+                pollfd* pfds = new pollfd[socket_list.size()];
+                for (int i = 0; i < socket_list.size(); i++) {
+                    pfds[i].fd = socket_list[i];
+                    pfds[i].events = POLLIN;
+                }
+
+                int ret = poll(pfds, socket_list.size(), -1);
+
+                for (int i = 0; i < socket_list.size(); i++) {
+                    // Check if socket available is wakeup socket.
+                    if (i == 0)
+                    {
+                           
+                    }
+                    if (pfds[i].revents & POLLIN) {
+                        receive_message(pfds[i].fd);
+                    }
+                }
+
+                delete[] pfds;
             }
         });
     }
@@ -82,6 +103,7 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         server_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (server_socket < 0)
         {
+            perror("socket()");
             throw std::runtime_error("Could not create socket.");
         }
 
@@ -94,16 +116,18 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         ret = bind(server_socket, (struct sockaddr *)&address, sizeof(address));
         if (ret < 0)
         {
+            perror("bind()");
             throw std::runtime_error("Could not bind socket.");
         }
         ret = listen(server_socket, 5);
         if (ret < 0)
         {
+            perror("listen()");
             throw std::runtime_error("Could not listen on socket.");
         }
 
         accept_thread_running = true;
-        acceptThread = std::thread([this]() {
+        accept_thread = std::thread([this]() {
             while (accept_thread_running)
             {
                 accept_connection();
@@ -116,8 +140,8 @@ State::~State()
 {
     recv_thread_running = false;
     accept_thread_running = false;
-    recvThread.join();
-    acceptThread.join();
+    recv_thread.join();
+    accept_thread.join();
     for (auto &var : vars)
     {
         free(var.second.data);
@@ -142,6 +166,7 @@ int State::register_owner(std::string variable_owner, std::string owner_ip, int 
     int sock;
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
+        perror("socket()");
         return sock;
     }
 
@@ -152,11 +177,13 @@ int State::register_owner(std::string variable_owner, std::string owner_ip, int 
     int ret;
     if ((ret = inet_pton(AF_INET, owner_ip.c_str(), &serv_addr.sin_addr)) <= 0)
     {
+        perror("inet_pton()");
         return ret;
     }
 
     if ((ret = connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr))) < 0)
     {
+        perror("connect()");
         return ret;
     }
 

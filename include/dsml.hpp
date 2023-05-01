@@ -41,11 +41,15 @@ namespace dsml
 
         std::atomic<bool> accept_thread_running;
 
-        std::thread recvThread;
+        std::thread recv_thread;
 
-        std::thread acceptThread;
+        std::thread accept_thread;
 
         int server_socket;
+
+        std::vector<int> socket_list;
+
+        std::unordered_map<std::string, int> subscriber_list;
 
         enum Type
         {
