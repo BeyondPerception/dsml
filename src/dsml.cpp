@@ -16,6 +16,9 @@ State::State(std::string config, std::string program_name) : self(program_name)
     if (std::filesystem::exists(config) == false)
         throw std::runtime_error("Configuration file does not exist.");
 
+    bool needs_socket;
+    bool needs_recv;
+
     std::ifstream config_file(config);
     std::string line;
     int i = 1;
@@ -43,13 +46,56 @@ State::State(std::string config, std::string program_name) : self(program_name)
             throw std::runtime_error("Invalid type in configuration file on line " + std::to_string(i));
         }
 
+        if (owner == self)
+        {
+            needs_socket = true;
+        }
+
+        if (owner != self)
+        {
+            needs_recv = true;
+        }
+
         create_var(var, type_map[type], owner, is_array == "true");
         i++;
+    }
+
+    if (needs_recv)
+    {
+        recv_thread_running = true;
+        recvThread = std::thread([this]() {
+            while (recv_thread_running)
+            {
+                recv_message();
+            }
+        });
+    }
+    if (needs_socket)
+    {
+        server_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_socket < 0)
+        {
+            throw std::runtime_error("Could not create socket.");
+        }
+        int ret;
+        ret = bind(server_socket, (struct sockaddr *)&address, sizeof(address));
+        if (ret < 0)
+        {
+            throw std::runtime_error("Could not bind socket.");
+        }
+        ret = listen(server_socket, 5);
+        if (ret < 0)
+        {
+            throw std::runtime_error("Could not listen on socket.");
+        }
+        
     }
 }
 
 State::~State()
 {
+    recv_thread_running = false;
+    recvThread.join();
     for (auto &var : vars)
     {
         switch (var.second.type)

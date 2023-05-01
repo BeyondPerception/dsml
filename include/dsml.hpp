@@ -1,7 +1,9 @@
 #pragma once
 
+#include <atomic>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -39,6 +41,12 @@ public:
 
 private:
     std::string self;
+
+    std::atomic<bool> recv_thread_running;
+
+    std::thread recvThread;
+
+    int server_socket;
 
     enum Type
     {
