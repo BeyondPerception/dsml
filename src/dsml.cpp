@@ -17,7 +17,7 @@
 
 using namespace dsml;
 
-State::State(std::string config, std::string program_name) : self(program_name)
+State::State(std::string config, std::string program_name, int port = 0) : self(program_name)
 {
     if (std::filesystem::exists(config) == false)
         throw std::runtime_error("Configuration file does not exist.");
@@ -83,6 +83,12 @@ State::State(std::string config, std::string program_name) : self(program_name)
         {
             throw std::runtime_error("Could not create socket.");
         }
+
+        struct sockaddr_in address;
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = INADDR_ANY;
+        address.sin_port = htons(port);
+
         int ret;
         ret = bind(server_socket, (struct sockaddr *)&address, sizeof(address));
         if (ret < 0)
@@ -94,67 +100,26 @@ State::State(std::string config, std::string program_name) : self(program_name)
         {
             throw std::runtime_error("Could not listen on socket.");
         }
-        
+
+        accept_thread_running = true;
+        acceptThread = std::thread([this]() {
+            while (accept_thread_running)
+            {
+                accept_connection();
+            }
+        });
     }
 }
 
 State::~State()
 {
     recv_thread_running = false;
+    accept_thread_running = false;
     recvThread.join();
+    acceptThread.join();
     for (auto &var : vars)
     {
-        switch (var.second.type)
-        {
-        case INT8:
-            if (var.second.is_array)
-                delete[] static_cast<int8_t *>(var.second.data);
-            else
-                delete static_cast<int8_t *>(var.second.data);
-            break;
-        case INT16:
-            if (var.second.is_array)
-                delete[] static_cast<int16_t *>(var.second.data);
-            else
-                delete static_cast<int16_t *>(var.second.data);
-            break;
-        case INT32:
-            if (var.second.is_array)
-                delete[] static_cast<int32_t *>(var.second.data);
-            else
-                delete static_cast<int32_t *>(var.second.data);
-            break;
-        case INT64:
-            if (var.second.is_array)
-                delete[] static_cast<int64_t *>(var.second.data);
-            else
-                delete static_cast<int64_t *>(var.second.data);
-            break;
-        case UINT8:
-            if (var.second.is_array)
-                delete[] static_cast<uint8_t *>(var.second.data);
-            else
-                delete static_cast<uint8_t *>(var.second.data);
-            break;
-        case UINT16:
-            if (var.second.is_array)
-                delete[] static_cast<uint16_t *>(var.second.data);
-            else
-                delete static_cast<uint16_t *>(var.second.data);
-            break;
-        case UINT32:
-            if (var.second.is_array)
-                delete[] static_cast<uint32_t *>(var.second.data);
-            else
-                delete static_cast<uint32_t *>(var.second.data);
-            break;
-        case UINT64:
-            if (var.second.is_array)
-                delete[] static_cast<uint64_t *>(var.second.data);
-            else
-                delete static_cast<uint64_t *>(var.second.data);
-            break;
-        }
+        free(var.second.data);
     }
 }
 
@@ -207,35 +172,7 @@ void State::create_var(std::string var, Type type, std::string owner, bool is_ar
     v.owner_socket = -1;
     if (!is_array)
     {
-        switch (type)
-        {
-        case INT8:
-            v.data = new int8_t;
-            break;
-        case INT16:
-            v.data = new int16_t;
-            break;
-        case INT32:
-            v.data = new int32_t;
-            break;
-        case INT64:
-            v.data = new int64_t;
-            break;
-        case UINT8:
-            v.data = new uint8_t;
-            break;
-        case UINT16:
-            v.data = new uint16_t;
-            break;
-        case UINT32:
-            v.data = new uint32_t;
-            break;
-        case UINT64:
-            v.data = new uint64_t;
-            break;
-        default:
-            v.data = nullptr;
-        }
+        v.data = malloc(type_size(type));        
     }
     else
     {
@@ -280,12 +217,6 @@ int State::receive_message(int socket)
 
 int State::send_message(int socket, std::string var)
 {
-    // Check if the variable exists.
-    if (vars.find(var) == vars.end())
-    {
-        return -1;
-    }
-
     size_t var_size = sizeof(var), data_size = vars[var].size * type_size(vars[var].type);
     int err;
 
