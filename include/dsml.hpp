@@ -296,7 +296,7 @@ namespace dsml
                 }
                 else
                 {
-                    if (!std::is_same_v<T, int16_t>)
+                    if (!std::is_same_v<T, int16_t> && !std::is_same_v<T, int8_t>)
                         throw std::runtime_error("Variable '" + var + "' is of type int16_t.");
                 }
                 break;
@@ -308,7 +308,7 @@ namespace dsml
                 }
                 else
                 {
-                    if (!std::is_same_v<T, int32_t>)
+                    if (!std::is_same_v<T, int32_t> && !std::is_same_v<T, int16_t> && !std::is_same_v<T, int8_t>)
                         throw std::runtime_error("Variable '" + var + "' is of type int32_t.");
                 }
                 break;
@@ -320,7 +320,7 @@ namespace dsml
                 }
                 else
                 {
-                    if (!std::is_same_v<T, int64_t>)
+                    if (!std::is_same_v<T, int64_t> && !std::is_same_v<T, int32_t> && !std::is_same_v<T, int16_t> && !std::is_same_v<T, int8_t>)
                         throw std::runtime_error("Variable '" + var + "' is of type int64_t.");
                 }
                 break;
@@ -344,7 +344,7 @@ namespace dsml
                 }
                 else
                 {
-                    if (!std::is_same_v<T, uint16_t>)
+                    if (!std::is_same_v<T, uint16_t> && !std::is_same_v<T, uint8_t>)
                         throw std::runtime_error("Variable '" + var + "' is of type uint16_t.");
                 }
                 break;
@@ -356,7 +356,7 @@ namespace dsml
                 }
                 else
                 {
-                    if (!std::is_same_v<T, uint32_t>)
+                    if (!std::is_same_v<T, uint32_t> && !std::is_same_v<T, uint16_t> && !std::is_same_v<T, uint8_t>)
                         throw std::runtime_error("Variable '" + var + "' is of type uint32_t.");
                 }
                 break;
@@ -368,7 +368,7 @@ namespace dsml
                 }
                 else
                 {
-                    if (!std::is_same_v<T, uint64_t>)
+                    if (!std::is_same_v<T, uint64_t> && !std::is_same_v<T, uint32_t> && !std::is_same_v<T, uint16_t> && !std::is_same_v<T, uint8_t>)
                         throw std::runtime_error("Variable '" + var + "' is of type uint64_t.");
                 }
                 break;
@@ -392,7 +392,7 @@ namespace dsml
                 }
                 else
                 {
-                    if (!std::is_same_v<T, double>)
+                    if (!std::is_same_v<T, double> && !std::is_same_v<T, float>)
                         throw std::runtime_error("Variable '" + var + "' is of type double.");
                 }
                 break;
