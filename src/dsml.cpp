@@ -333,6 +333,8 @@ size_t State::type_size(Type type)
         return sizeof(uint32_t);
     case UINT64:
         return sizeof(uint64_t);
+    case STRING:
+        return sizeof(char);
     default:
         throw std::runtime_error("Invalid type.");
     }
