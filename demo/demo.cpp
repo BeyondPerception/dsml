@@ -26,14 +26,17 @@ int main(int argc, char *argv[])
     std::cout << test2 << "\n";
     std::cout << test3 << "\n";
 
-    system("read");
-
-    std::cout << "Changing TEST2\n";
-
     dsml.set("TEST2", (uint8_t)7);
 
-    while (true)
+    // system("read");
+
+    // dsml.set("TEST1", std::vector<int8_t>{1, 2, 3, 4});
+
+    while (true) {
+        test3 = dsml.get<std::string>("TEST3");
+        std::cout << test3 << "\n";
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
 
     return 0;
 }

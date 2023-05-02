@@ -243,7 +243,7 @@ namespace dsml
 
         int send_interest(int socket, std::string var);
 
-        int request_update(int socket, std::string var, void *data, size_t data_size);
+        int request_update(int socket, std::string var, void *data, int data_size);
 
         int accept_connection();
 

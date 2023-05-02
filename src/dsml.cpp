@@ -451,15 +451,6 @@ int State::recv_message(int socket)
     vars[var].size = var_data_size / type_size(vars[var].type);
 
     var_cvs[var].notify_all();
-    // Handle update request.
-    if (self == vars[var].owner)
-    {
-        // Send the message to all subscribers.
-        for (auto &socket : subscriber_list[var])
-        {
-            send_message(socket, var);
-        }
-    }
 
     return 0;
 }
@@ -499,13 +490,20 @@ int State::send_message(int socket, std::string var)
 
 int State::recv_interest(int socket)
 {
-    int var_name_size;
+    int var_name_size, var_data_size;
+    bool is_request;
     int err;
 
-    // Read the size of the variable name.
-    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) <= 0)
+    // Check if this is an interest message or an update_request.
+    if ((err = read(socket, &is_request, 1)) <= 0)
     {
         return (err == 0) ? -1 : err;
+    }
+
+    // Read the size of the variable name.
+    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) < 0)
+    {
+        return err;
     }
 
     // Read the variable name.
@@ -515,18 +513,62 @@ int State::recv_interest(int socket)
         return err;
     }
 
-    std::unique_lock lk(var_locks[var]);
-
-    // Add the socket to the subscriber list.
-    subscriber_list[var].push_back(socket);
-
-    lk.unlock();
-
-    if ((err = send_message(socket, var)) < 0)
+    // Check if the variable exists.
+    if (vars.find(var) == vars.end())
     {
-        return err;
+        return -1;
     }
 
+    std::unique_lock lk(var_locks[var]);
+
+    // Update request.
+    if (is_request)
+    {
+        // Read the size of the data.
+        if ((err = read(socket, &var_data_size, sizeof(var_data_size))) < 0)
+        {
+            return err;
+        }
+
+        // Free the old data.
+        free(vars[var].data);
+
+        // Allocate memory for the new data.
+        vars[var].data = malloc(var_data_size);
+        if (vars[var].data == nullptr)
+        {
+            perror("malloc()");
+            return -1;
+        }
+
+        // Read the data.
+        if ((err = read(socket, vars[var].data, var_data_size)) < 0)
+        {
+            return err;
+        }
+
+        // Update the size of the variable.
+        vars[var].size = var_data_size / type_size(vars[var].type);
+
+        var_cvs[var].notify_all();
+    }
+    // Interest message.
+    else
+    {
+        // Add the socket to the subscriber list.
+        subscriber_list[var].push_back(socket);
+    }
+    
+    lk.unlock();
+
+    for (auto &socket : subscriber_list[var])
+    {
+        if ((err = send_message(socket, var)) < 0)
+        {
+            return err;
+        }
+    }
+    
     return 0;
 }
 
@@ -534,6 +576,13 @@ int State::send_interest(int socket, std::string var)
 {
     int var_name_size = var.size();
     int err;
+
+    // Send our interest value.
+    bool request = false;
+    if ((err = send(socket, &request, 1, MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
+    {
+        return err;
+    }
 
     // Send the size of the variable name.
     if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
@@ -550,31 +599,38 @@ int State::send_interest(int socket, std::string var)
     return 0;
 }
 
-int State::request_update(int socket, std::string var, void *data, size_t data_size)
+int State::request_update(int socket, std::string var, void *data, int data_size)
 {
-    size_t var_name_size = var.size();
+    int var_name_size = var.size();
     int err;
 
+    // Send request value;
+    bool request = true;
+    if ((err = send(socket, &request, 1, MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
+    {
+        return err;
+    }
+    
     // Send the size of the variable name.
-    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
 
     // Send the variable name.
-    if ((err = send(socket, &var[0], var_name_size, MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var[0], var_name_size, MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
 
     // Send the size of the data.
-    if ((err = send(socket, &data_size, sizeof(data_size), MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &data_size, sizeof(data_size), MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
 
     // Send the data.
-    if ((err = send(socket, data, data_size, 0)) < 0)
+    if ((err = send(socket, data, data_size, MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
