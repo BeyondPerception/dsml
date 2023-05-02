@@ -442,9 +442,17 @@ int State::recv_message(int socket)
     }
 
     // Read the data.
-    if ((err = read(socket, vars[var].data, var_data_size)) < 0)
+    size_t dataIndex = 0;
+    size_t bytesToRead = var_data_size;
+    while (bytesToRead > 0)
     {
-        return err;
+        err = read(socket, &((char*)vars[var].data)[dataIndex], bytesToRead);
+        if (err < 0)
+        {
+            return err;
+        }
+        bytesToRead -= err;
+        dataIndex += err;
     }
 
     // Update the size of the variable.
@@ -542,9 +550,17 @@ int State::recv_interest(int socket)
         }
 
         // Read the data.
-        if ((err = read(socket, vars[var].data, var_data_size)) < 0)
+        size_t dataIndex = 0;
+        size_t bytesToRead = var_data_size;
+        while (bytesToRead > 0)
         {
-            return err;
+            err = read(socket, &((char*)vars[var].data)[dataIndex], bytesToRead);
+            if (err < 0)
+            {
+                return err;
+            }
+            bytesToRead -= err;
+            dataIndex += err;
         }
 
         // Update the size of the variable.
