@@ -85,6 +85,7 @@ State::State(std::string config, std::string program_name, int port) : self(prog
     }
     client_socket_list.push_back(pipefd[0]);
     identification_wakeup_fd = pipefd[1];
+    server_socket = -1;
 
     if (needs_recv)
     {
