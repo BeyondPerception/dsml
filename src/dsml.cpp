@@ -231,6 +231,7 @@ void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
         std::cout << "lock unackd\n";
     });
     while (!acquired)
+        std::cout << "waking up thread\n";
         write(fd, "a", 1);
     action();
     while (!through)
