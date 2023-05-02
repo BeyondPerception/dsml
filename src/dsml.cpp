@@ -405,7 +405,7 @@ size_t State::type_size(Type type)
 
 void State::notify_subscribers(std::string var)
 {
-    std::unique_lock(subscriber_list_m);
+    std::unique_lock lk(subscriber_list_m);
     // Send the message to all subscribers.
     for (int i = subscriber_list[var].size() - 1; i >= 0; i--)
     {
