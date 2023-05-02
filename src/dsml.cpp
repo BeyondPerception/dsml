@@ -216,8 +216,8 @@ void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
 {
     std::mutex cv_m;
     std::condition_variable cv;
-    std::atomic<bool> acquired;
-    std::atomic<bool> through;
+    std::atomic<bool> acquired = false;
+    std::atomic<bool> through = false;
     std::thread t([&]()
     {
         m.lock();
