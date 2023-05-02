@@ -333,8 +333,6 @@ size_t State::type_size(Type type)
         return sizeof(uint32_t);
     case UINT64:
         return sizeof(uint64_t);
-    case STRING:
-        return sizeof(char);
     default:
         throw std::runtime_error("Invalid type.");
     }
@@ -364,6 +362,8 @@ int State::recv_message(int socket)
     {
         return -1;
     }
+
+    std::unique_lock lk(var_locks[var]);
 
     // Free the old data.
     free(vars[var].data);
@@ -440,6 +440,8 @@ int State::recv_interest(int socket)
     {
         return err;
     }
+
+    std::unique_lock lk(var_locks[var]);
 
     // Add the socket to the subscriber list.
     subscriber_list[var].push_back(socket);
