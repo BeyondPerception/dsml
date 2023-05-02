@@ -200,6 +200,8 @@ namespace dsml
             UINT16,
             UINT32,
             UINT64,
+            FLOAT,
+            DOUBLE,
             STRING,
         };
 
@@ -215,6 +217,8 @@ namespace dsml
             {"UINT16", UINT16},
             {"UINT32", UINT32},
             {"UINT64", UINT64},
+            {"FLOAT", FLOAT},
+            {"DOUBLE", DOUBLE},
             {"STRING", STRING},
         };
 
@@ -366,6 +370,30 @@ namespace dsml
                 {
                     if (!std::is_same_v<T, uint64_t>)
                         throw std::runtime_error("Variable '" + var + "' is of type uint64_t.");
+                }
+                break;
+            case FLOAT:
+                if (v.is_array)
+                {
+                    if (!std::is_same_v<T, std::vector<float>>)
+                        throw std::runtime_error("Variable '" + var + "' is of type std::vector<float>.");
+                }
+                else
+                {
+                    if (!std::is_same_v<T, float>)
+                        throw std::runtime_error("Variable '" + var + "' is of type float.");
+                }
+                break;
+            case DOUBLE:
+                if (v.is_array)
+                {
+                    if (!std::is_same_v<T, std::vector<double>>)
+                        throw std::runtime_error("Variable '" + var + "' is of type std::vector<double>.");
+                }
+                else
+                {
+                    if (!std::is_same_v<T, double>)
+                        throw std::runtime_error("Variable '" + var + "' is of type double.");
                 }
                 break;
             case STRING:

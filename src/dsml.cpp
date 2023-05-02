@@ -392,6 +392,10 @@ size_t State::type_size(Type type)
         return sizeof(uint32_t);
     case UINT64:
         return sizeof(uint64_t);
+    case FLOAT:
+        return sizeof(float);
+    case DOUBLE:
+        return sizeof(double);
     case STRING:
         return sizeof(char);
     default:
