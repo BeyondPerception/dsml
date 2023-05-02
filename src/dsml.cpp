@@ -281,6 +281,19 @@ State::~State()
     recv_thread_running = false;
     accept_thread_running = false;
     identification_thread_running = false;
+    write(identification_wakeup_fd, "a", 1);
+    write(recv_wakeup_fd, "a", 1);
+    close(identification_wakeup_fd);
+    close(recv_wakeup_fd);
+    close(server_socket);
+    for (auto socket : recv_socket_list)
+    {
+        close(socket);
+    }
+    for (auto socket : client_socket_list)
+    {
+        close(socket);
+    }
     for (auto &var : vars)
     {
         free(var.second.data);
@@ -375,6 +388,8 @@ size_t State::type_size(Type type)
         return sizeof(uint32_t);
     case UINT64:
         return sizeof(uint64_t);
+    case STRING:
+        return sizeof(char);
     default:
         throw std::runtime_error("Invalid type.");
     }
@@ -433,6 +448,15 @@ int State::recv_message(int socket)
     vars[var].size = var_data_size / type_size(vars[var].type);
 
     var_cvs[var].notify_all();
+    // Handle update request.
+    if (self == vars[var].owner)
+    {
+        // Send the message to all subscribers.
+        for (auto &socket : subscriber_list[var])
+        {
+            send_message(socket, var);
+        }
+    }
 
     return 0;
 }
@@ -516,6 +540,38 @@ int State::send_interest(int socket, std::string var)
 
     // Send the variable name.
     if ((err = send(socket, &var[0], var_name_size, MSG_NOSIGNAL)) < 0)
+    {
+        return err;
+    }
+
+    return 0;
+}
+
+int State::request_update(int socket, std::string var, void *data, size_t data_size)
+{
+    size_t var_name_size = var.size();
+    int err;
+
+    // Send the size of the variable name.
+    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the variable name.
+    if ((err = send(socket, &var[0], var_name_size, MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the size of the data.
+    if ((err = send(socket, &data_size, sizeof(data_size), MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the data.
+    if ((err = send(socket, data, data_size, 0)) < 0)
     {
         return err;
     }

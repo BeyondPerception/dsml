@@ -80,6 +80,13 @@ namespace dsml
                                        static_cast<T *>(vars[var].data) + vars[var].size);
         }
 
+        void get(std::string var, std::string &ret_value)
+        {
+            std::vector<char> v;
+            get(var, v);
+            ret_value = std::string(v.begin(), v.end());
+        }
+
         template <typename T>
         void set(std::string var, T value)
         {
@@ -90,7 +97,8 @@ namespace dsml
             // Check if this program owns the variable.
             if (self != vars[var].owner)
             {
-                throw std::runtime_error("Variable " + var + " is not owned by this program.");
+                request_update(vars[var].owner_socket, var, &value, sizeof(value));
+                return;
             }
 
             *static_cast<T *>(vars[var].data) = value;
@@ -122,7 +130,8 @@ namespace dsml
             // Check if this program owns the variable.
             if (self != vars[var].owner)
             {
-                throw std::runtime_error("Variable " + var + " is not owned by this program.");
+                request_update(vars[var].owner_socket, var, value.data(), value.size() * sizeof(T));
+                return;
             }
 
             free(vars[var].data);
@@ -145,6 +154,11 @@ namespace dsml
                     close(socket);
                 }
             }
+        }
+
+        void set(std::string var, std::string value)
+        {
+            set(var, std::vector<char>(value.begin(), value.end()));
         }
 
     private:
@@ -229,6 +243,8 @@ namespace dsml
         int recv_interest(int socket);
 
         int send_interest(int socket, std::string var);
+
+        int request_update(int socket, std::string var, void *data, size_t data_size);
 
         int accept_connection();
 
@@ -348,7 +364,7 @@ namespace dsml
                 }
                 break;
             case STRING:
-                if (!std::is_same_v<T, uint64_t>)
+                if (!std::is_same_v<T, std::vector<char>>)
                     throw std::runtime_error("Variable '" + var + "' is of type std::string.");
                 break;
             default:
