@@ -1,2 +1,3 @@
 TEST1 INT8 CN true
 TEST2 UINT8 CN false
+TEST3 STRING CN false
