@@ -11,14 +11,14 @@
 
 #include <dsml.hpp>
 
-#define SEND_FLAGS MSG_HAVEMORE
-
 // MAC and Linux have different names for telling the OS that you have more
 // data to send.
 #ifdef __linux__
     #define MSG_HAVEMORE MSG_MORE
-    #undef SEND_FLAGS
-    #define SEND_FLAGS MSG_HAVEMORE | MSG_NOSIGNAL
+#endif
+
+#ifdef __APPLE__
+    #define MSG_NOSIGNAL 0
 #endif
 
 using namespace dsml;
@@ -85,7 +85,7 @@ State::State(std::string config, std::string program_name, int port) : self(prog
     if (pipe(pipefd) < 0)
     {
         perror("pipe()");
-
+        throw std::runtime_error("Failed to create wakeup pipe.");
     }
     client_socket_list.push_back(pipefd[0]);
     identification_wakeup_fd = pipefd[1];
@@ -108,14 +108,22 @@ State::State(std::string config, std::string program_name, int port) : self(prog
 
                 int ret = poll(pfds, recv_socket_list.size(), -1);
 
-                for (int i = 1; i < recv_socket_list.size(); i++)
+                for (int i = 0; i < recv_socket_list.size(); i++)
                 {
                     if (pfds[i].revents & POLLIN)
                     {
-                        if (recv_message(pfds[i].fd) < 0)
+                        if (i == 0)
                         {
-                            close(pfds[i].fd);
-                            recv_socket_list.erase(recv_socket_list.begin() + i);
+                            char buf[1];
+                            read(pfds[i].fd, buf, 1);
+                        }
+                        else
+                        {
+                            if (recv_message(pfds[i].fd) < 0)
+                            {
+                                close(pfds[i].fd);
+                                recv_socket_list.erase(recv_socket_list.begin() + i);
+                            }
                         }
                     }
                 }
@@ -177,14 +185,22 @@ State::State(std::string config, std::string program_name, int port) : self(prog
 
                 int ret = poll(pfds, client_socket_list.size(), -1);
 
-                for (int i = 1; i < client_socket_list.size(); i++)
+                for (int i = 0; i < client_socket_list.size(); i++)
                 {
                     if (pfds[i].revents & POLLIN)
                     {
-                        if (recv_interest(pfds[i].fd) < 0)
+                        if (i == 0)
                         {
-                            close(pfds[i].fd);
-                            client_socket_list.erase(client_socket_list.begin() + i);
+                            char buf[1];
+                            read(pfds[i].fd, buf, 1);
+                        }
+                        else
+                        {
+                            if (recv_interest(pfds[i].fd) < 0)
+                            {
+                                close(pfds[i].fd);
+                                client_socket_list.erase(client_socket_list.begin() + i);
+                            }
                         }
                     }
                 }
@@ -192,6 +208,28 @@ State::State(std::string config, std::string program_name, int port) : self(prog
         });
         identification_thread.detach();
     }
+}
+
+void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
+{
+    std::mutex cv_m;
+    std::condition_variable cv;
+    std::atomic<bool> acquired;
+    std::atomic<bool> through;
+    std::thread t([&](){
+        m.lock();
+        acquired = true;
+        std::unique_lock lk(cv_m);
+        cv.wait(lk);
+        through = true;
+        m.unlock();
+    });
+    while (!acquired)
+        write(fd, "a", 1);
+    action();
+    while (!through)
+        cv.notify_all();
+    t.join();
 }
 
 int State::accept_connection()
@@ -230,9 +268,10 @@ int State::accept_connection()
     }
 #endif
 
-    write(identification_wakeup_fd, "a", 1);
-    std::unique_lock lk(client_socket_list_m);
-    client_socket_list.push_back(new_socket);
+    wakeup_thread(client_socket_list_m, identification_wakeup_fd, [this, new_socket]()
+    {
+        client_socket_list.push_back(new_socket);
+    });
 
     return 0;
 }
@@ -250,8 +289,11 @@ State::~State()
 
 int State::register_owner(std::string variable_owner, int socket)
 {
-    write(recv_wakeup_fd, "a", 1);
-    std::unique_lock lk (socket_list_m);
+    wakeup_thread(socket_list_m, recv_wakeup_fd, [this, socket]()
+    {
+        recv_socket_list.push_back(socket);
+    });
+
     for (auto &var : vars)
     {
         if (var.second.owner == variable_owner)
@@ -294,7 +336,7 @@ int State::register_owner(std::string variable_owner, std::string owner_ip, int 
 
 void State::create_var(std::string var, Type type, std::string owner, bool is_array)
 {
-    Variable v = {type, is_array, 0, owner, -1, nullptr};
+    Variable v = {type, is_array, 1, owner, -1, nullptr};
 
     if (!is_array)
     {
@@ -340,19 +382,18 @@ size_t State::type_size(Type type)
 
 int State::recv_message(int socket)
 {
-    size_t var_name_size, var_data_size;
-    std::string var;
+    int var_name_size, var_data_size;
     int err;
 
     // Read the size of the variable name.
-    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) < 0)
+    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) <= 0)
     {
-        return err;
+        return (err == 0) ? -1 : err;
     }
 
     // Read the variable name.
-    var.resize(var_name_size);
-    if ((err = read(socket, &var, var_name_size)) < 0)
+    std::string var (var_name_size, 0);
+    if ((err = read(socket, &var[0], var_name_size)) < 0)
     {
         return err;
     }
@@ -365,16 +406,21 @@ int State::recv_message(int socket)
 
     std::unique_lock lk(var_locks[var]);
 
+    // Read the size of the data.
+    if ((err = read(socket, &var_data_size, sizeof(var_data_size))) < 0)
+    {
+        return err;
+    }
+
     // Free the old data.
     free(vars[var].data);
 
     // Allocate memory for the new data.
     vars[var].data = malloc(var_data_size);
-
-    // Read the size of the data.
-    if ((err = read(socket, &var_data_size, sizeof(var_data_size))) < 0)
+    if (vars[var].data == nullptr)
     {
-        return err;
+        perror("malloc()");
+        return -1;
     }
 
     // Read the data.
@@ -386,35 +432,37 @@ int State::recv_message(int socket)
     // Update the size of the variable.
     vars[var].size = var_data_size / type_size(vars[var].type);
 
+    var_cvs[var].notify_all();
+
     return 0;
 }
 
 int State::send_message(int socket, std::string var)
 {
-    size_t var_name_size = sizeof(var),
+    int var_name_size = var.size(),
            var_data_size = vars[var].size * type_size(vars[var].type);
     int err;
 
     // Send the size of the variable name.
-    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
 
     // Send the variable name.
-    if ((err = send(socket, &var, var_name_size, MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var[0], var_name_size, MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
 
     // Send the size of the data.
-    if ((err = send(socket, &var_data_size, sizeof(var_data_size), MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var_data_size, sizeof(var_data_size), MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
 
     // Send the data.
-    if ((err = send(socket, vars[var].data, var_data_size, 0)) < 0)
+    if ((err = send(socket, vars[var].data, var_data_size, MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
@@ -424,19 +472,18 @@ int State::send_message(int socket, std::string var)
 
 int State::recv_interest(int socket)
 {
-    size_t var_name_size;
-    std::string var;
+    int var_name_size;
     int err;
 
     // Read the size of the variable name.
-    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) < 0)
+    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) <= 0)
     {
-        return err;
+        return (err == 0) ? -1 : err;
     }
 
     // Read the variable name.
-    var.resize(var_name_size);
-    if ((err = read(socket, &var, var_name_size)) < 0)
+    std::string var (var_name_size, 0);
+    if ((err = read(socket, &var[0], var_name_size)) < 0)
     {
         return err;
     }
@@ -446,22 +493,29 @@ int State::recv_interest(int socket)
     // Add the socket to the subscriber list.
     subscriber_list[var].push_back(socket);
 
+    lk.unlock();
+
+    if ((err = send_message(socket, var)) < 0)
+    {
+        return err;
+    }
+
     return 0;
 }
 
 int State::send_interest(int socket, std::string var)
 {
-    size_t var_name_size = sizeof(var);
+    int var_name_size = var.size();
     int err;
 
     // Send the size of the variable name.
-    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE)) < 0)
+    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
         return err;
     }
 
     // Send the variable name.
-    if ((err = send(socket, &var, var_name_size, 0)) < 0)
+    if ((err = send(socket, &var[0], var_name_size, MSG_NOSIGNAL)) < 0)
     {
         return err;
     }

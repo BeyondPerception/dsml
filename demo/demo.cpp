@@ -23,5 +23,8 @@ int main(int argc, char *argv[])
     std::cout << (int)test1[2] << "\n";
     std::cout << test2 << "\n";
 
+    while (true)
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
     return 0;
 }

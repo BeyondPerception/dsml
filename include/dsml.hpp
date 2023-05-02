@@ -1,7 +1,10 @@
 #pragma once
 
 #include <atomic>
+#include <algorithm>
 #include <cstring>
+#include <condition_variable>
+#include <functional>
 #include <mutex>
 #include <stdexcept>
 #include <string>
@@ -9,6 +12,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include <unistd.h>
 
 namespace dsml
 {
@@ -40,10 +45,14 @@ namespace dsml
             std::unique_lock lk(var_locks[var]);
 
             // Tell the owner that we are interested in this variable.
-            if (interested_vars.find(var) == interested_vars.end())
+            if (vars[var].owner != self && interested_vars.find(var) == interested_vars.end())
             {
-                send_interest(vars[var].owner_socket, var);
+                if (send_interest(vars[var].owner_socket, var) < 0)
+                {
+                    // Do some error reporting.
+                }
                 interested_vars.insert(var);
+                var_cvs[var].wait(lk);
             }
 
             ret_value = *static_cast<T *>(vars[var].data);
@@ -57,10 +66,14 @@ namespace dsml
             std::unique_lock lk(var_locks[var]);
 
             // Tell the owner that we are interested in this variable.
-            if (interested_vars.find(var) == interested_vars.end())
+            if (vars[var].owner != self && interested_vars.find(var) == interested_vars.end())
             {
-                send_interest(vars[var].owner_socket, var);
+                if (send_interest(vars[var].owner_socket, var) < 0)
+                {
+                    // Do some error reporting.
+                }
                 interested_vars.insert(var);
+                var_cvs[var].wait(lk);
             }
 
             ret_value = std::vector<T>(static_cast<T *>(vars[var].data),
@@ -83,9 +96,19 @@ namespace dsml
             *static_cast<T *>(vars[var].data) = value;
 
             // Send the message to all subscribers.
-            for (auto &socket : subscriber_list[var])
+            for (int i = subscriber_list[var].size() - 1; i >= 0; i--)
             {
-                send_message(socket, var);
+                int socket = subscriber_list[var][i];
+                int ret = send_message(socket, var);
+                if (ret < 0)
+                {
+                    subscriber_list[var].erase(subscriber_list[var].begin() + i);
+                    wakeup_thread(client_socket_list_m, identification_wakeup_fd, [this, socket]()
+                    {
+                        client_socket_list.erase(std::remove(client_socket_list.begin(), client_socket_list.end(), socket), client_socket_list.end());
+                    });
+                    close(socket);
+                }
             }
         }
 
@@ -108,9 +131,19 @@ namespace dsml
             memcpy(vars[var].data, value.data(), value.size() * sizeof(T));
 
             // Send the message to all subscribers.
-            for (auto &socket : subscriber_list[var])
+            for (int i = subscriber_list[var].size() - 1; i >= 0; i--)
             {
-                send_message(socket, var);
+                int socket = subscriber_list[var][i];
+                int ret = send_message(socket, var);
+                if (ret < 0)
+                {
+                    subscriber_list[var].erase(subscriber_list[var].begin() + i);
+                    wakeup_thread(client_socket_list_m, identification_wakeup_fd, [this, socket]()
+                    {
+                        client_socket_list.erase(std::remove(client_socket_list.begin(), client_socket_list.end(), socket), client_socket_list.end());
+                    });
+                    close(socket);
+                }
             }
         }
 
@@ -182,6 +215,7 @@ namespace dsml
             void *data;
         };
 
+        std::unordered_map<std::string, std::condition_variable> var_cvs;
         std::unordered_map<std::string, std::mutex> var_locks;
 
         std::unordered_map<std::string, Variable> vars;
@@ -197,6 +231,8 @@ namespace dsml
         int send_interest(int socket, std::string var);
 
         int accept_connection();
+
+        void wakeup_thread(std::mutex& m, int fd, std::function<void()> action);
 
         template <typename T>
         void check_var_type(std::string var)
