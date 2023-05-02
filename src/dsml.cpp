@@ -1,13 +1,13 @@
-#include <iostream>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 
 #include <arpa/inet.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
-#include <unistd.h>
 #include <poll.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <dsml.hpp>
 
@@ -337,6 +337,51 @@ int State::send_message(int socket, std::string var)
 
     // Send the data.
     if ((err = send(socket, vars[var].data, var_data_size, 0)) < 0)
+    {
+        return err;
+    }
+
+    return 0;
+}
+
+int State::recv_interest(int socket)
+{
+    size_t var_name_size;
+    std::string var;
+    int err;
+
+    // Read the size of the variable name.
+    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) < 0)
+    {
+        return err;
+    }
+
+    // Read the variable name.
+    var.resize(var_name_size);
+    if ((err = read(socket, &var, var_name_size)) < 0)
+    {
+        return err;
+    }
+
+    // Add the socket to the subscriber list.
+    subscriber_list[var].push_back(socket);
+
+    return 0;
+}
+
+int State::send_interest(int socket, std::string var)
+{
+    size_t var_name_size = sizeof(var);
+    int err;
+
+    // Send the size of the variable name.
+    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the variable name.
+    if ((err = send(socket, &var, var_name_size, 0)) < 0)
     {
         return err;
     }

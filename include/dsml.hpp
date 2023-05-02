@@ -24,6 +24,16 @@ namespace dsml
         T get(std::string var)
         {
             check_var_type<T>(var);
+
+            // Tell the owner that we are interested in this variable.
+            send_interest(vars[var].owner_socket, var);
+
+            if (vars[var].is_array)
+            {
+                return std::vector<T>(static_cast<T *>(vars[var].data),
+                                      static_cast<T *>(vars[var].data) + vars[var].size);
+            }
+
             return *static_cast<T *>(vars[var].data);
         }
 
@@ -109,6 +119,10 @@ namespace dsml
         int recv_message(int socket);
 
         int send_message(int socket, std::string var);
+
+        int recv_interest(int socket);
+
+        int send_interest(int socket, std::string var);
 
         int accept_connection();
 
