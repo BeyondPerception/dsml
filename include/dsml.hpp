@@ -1,9 +1,9 @@
 #pragma once
 
-#include <atomic>
 #include <algorithm>
-#include <cstring>
+#include <atomic>
 #include <condition_variable>
+#include <cstring>
 #include <functional>
 #include <mutex>
 #include <stdexcept>
@@ -33,7 +33,6 @@ namespace dsml
         {
             T v;
             get(var, v);
-
             return v;
         }
 
@@ -248,7 +247,7 @@ namespace dsml
 
         int accept_connection();
 
-        void wakeup_thread(std::mutex& m, int fd, std::function<void()> action);
+        void wakeup_thread(std::mutex &m, int fd, std::function<void()> action);
 
         void recv_loop();
 

@@ -219,7 +219,8 @@ void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
     std::condition_variable cv;
     std::atomic<bool> acquired;
     std::atomic<bool> through;
-    std::thread t([&](){
+    std::thread t([&]()
+    {
         m.lock();
         std::cout << "lock ackd\n";
         acquired = true;
@@ -413,7 +414,7 @@ int State::recv_message(int socket)
     }
 
     // Read the variable name.
-    std::string var (var_name_size, 0);
+    std::string var(var_name_size, 0);
     if ((err = read(socket, &var[0], var_name_size)) < 0)
     {
         return err;
@@ -470,7 +471,7 @@ int State::recv_message(int socket)
 int State::send_message(int socket, std::string var)
 {
     int var_name_size = var.size(),
-           var_data_size = vars[var].size * type_size(vars[var].type);
+        var_data_size = vars[var].size * type_size(vars[var].type);
     int err;
 
     // Send the size of the variable name.
@@ -512,7 +513,7 @@ int State::recv_interest(int socket)
     }
 
     // Read the variable name.
-    std::string var (var_name_size, 0);
+    std::string var(var_name_size, 0);
     if ((err = read(socket, &var[0], var_name_size)) < 0)
     {
         return err;
