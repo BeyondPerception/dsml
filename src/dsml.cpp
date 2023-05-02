@@ -219,36 +219,29 @@ void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
     std::cout << "AB" << std::endl;
     std::condition_variable cv;
     std::cout << "AC" << std::endl;
-    std::atomic<bool> acquired;
+    std::atomic<bool> acquired = false;
     std::cout << "AD" << std::endl;
-    std::atomic<bool> through;
+    std::atomic<bool> through = false;  
     std::cout << "AE" << std::endl;
     std::thread t([&]()
     {
         std::cout << "AF" << std::endl;
         m.lock();
-        std::cout << "AG" << std::endl;
         std::cout << "lock ackd\n";
-        std::cout << "AH" << std::endl;
         acquired = true;
         std::cout << "AI" << std::endl;
         std::unique_lock lk(cv_m);
         std::cout << "AJ" << std::endl;
         cv.wait(lk);
-        std::cout << "AK" << std::endl;
         std::cout << "cv\n";
-        std::cout << "AL" << std::endl;
         through = true;
         std::cout << "AM" << std::endl;
         m.unlock();
-        std::cout << "AN" << std::endl;
         std::cout << "lock unackd\n";
     });
     std::cout << "AO" << std::endl;
     while (!acquired) {
-        std::cout << "AP" << std::endl;
         std::cout << "waking up thread\n";
-        std::cout << "AQ" << std::endl;
         write(fd, "a", 1);
     }
     std::cout << "AR" << std::endl;
