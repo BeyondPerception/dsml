@@ -403,6 +403,26 @@ size_t State::type_size(Type type)
     }
 }
 
+void State::notify_subscribers(std::string var)
+{
+    std::unique_lock(subscriber_list_m);
+    // Send the message to all subscribers.
+    for (int i = subscriber_list[var].size() - 1; i >= 0; i--)
+    {
+        int socket = subscriber_list[var][i];
+        int ret = send_message(socket, var);
+        if (ret < 0)
+        {
+            subscriber_list[var].erase(subscriber_list[var].begin() + i);
+            wakeup_thread(client_socket_list_m, identification_wakeup_fd, [this, socket]()
+            {
+                client_socket_list.erase(std::remove(client_socket_list.begin(), client_socket_list.end(), socket), client_socket_list.end());
+            });
+            close(socket);
+        }
+    }
+}
+
 int State::recv_message(int socket)
 {
     int var_name_size, var_data_size;
@@ -582,13 +602,8 @@ int State::recv_interest(int socket)
     }
     
     lk.unlock();
+    notify_subscribers(var);
 
-    for (auto &socket : subscriber_list[var])
-    {
-        // Ignore errors so all subscribers are notified.
-        send_message(socket, var);
-    }
-    
     return 0;
 }
 

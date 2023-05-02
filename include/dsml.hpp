@@ -102,21 +102,8 @@ namespace dsml
 
             *static_cast<T *>(vars[var].data) = value;
 
-            // Send the message to all subscribers.
-            for (int i = subscriber_list[var].size() - 1; i >= 0; i--)
-            {
-                int socket = subscriber_list[var][i];
-                int ret = send_message(socket, var);
-                if (ret < 0)
-                {
-                    subscriber_list[var].erase(subscriber_list[var].begin() + i);
-                    wakeup_thread(client_socket_list_m, identification_wakeup_fd, [this, socket]()
-                    {
-                        client_socket_list.erase(std::remove(client_socket_list.begin(), client_socket_list.end(), socket), client_socket_list.end());
-                    });
-                    close(socket);
-                }
-            }
+            lk.unlock();
+            notify_subscribers(var);
         }
 
         template <typename T>
@@ -138,21 +125,8 @@ namespace dsml
             vars[var].size = value.size();
             memcpy(vars[var].data, value.data(), value.size() * sizeof(T));
 
-            // Send the message to all subscribers.
-            for (int i = subscriber_list[var].size() - 1; i >= 0; i--)
-            {
-                int socket = subscriber_list[var][i];
-                int ret = send_message(socket, var);
-                if (ret < 0)
-                {
-                    subscriber_list[var].erase(subscriber_list[var].begin() + i);
-                    wakeup_thread(client_socket_list_m, identification_wakeup_fd, [this, socket]()
-                    {
-                        client_socket_list.erase(std::remove(client_socket_list.begin(), client_socket_list.end(), socket), client_socket_list.end());
-                    });
-                    close(socket);
-                }
-            }
+            lk.unlock();
+            notify_subscribers(var);
         }
 
         void set(std::string var, std::string value)
@@ -188,6 +162,7 @@ namespace dsml
         std::mutex client_socket_list_m;
         std::vector<int> client_socket_list;
 
+        std::mutex subscriber_list_m;
         std::unordered_map<std::string, std::vector<int>> subscriber_list;
 
         enum Type : uint8_t
@@ -258,6 +233,8 @@ namespace dsml
         void accept_loop();
 
         void identification_loop();
+
+        void notify_subscribers(std::string var);
 
         template <typename T>
         void check_var_type(std::string var)
