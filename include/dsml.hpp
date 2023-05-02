@@ -13,7 +13,7 @@ namespace dsml
     class State
     {
     public:
-        State(std::string config, std::string program_name, int port);
+        State(std::string config, std::string program_name, int port = 0);
 
         ~State();
 
