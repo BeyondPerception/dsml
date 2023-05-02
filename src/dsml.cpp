@@ -388,6 +388,16 @@ int State::recv_message(int socket)
     // Update the size of the variable.
     vars[var].size = var_data_size / type_size(vars[var].type);
 
+    // Handle update request.
+    if (self == vars[var].owner)
+    {
+        // Send the message to all subscribers.
+        for (auto &socket : subscriber_list[var])
+        {
+            send_message(socket, var);
+        }
+    }
+
     return 0;
 }
 
@@ -464,6 +474,38 @@ int State::send_interest(int socket, std::string var)
 
     // Send the variable name.
     if ((err = send(socket, &var, var_name_size, 0)) < 0)
+    {
+        return err;
+    }
+
+    return 0;
+}
+
+int State::request_update(int socket, std::string var, void *data, size_t data_size)
+{
+    size_t var_name_size = var.size();
+    int err;
+
+    // Send the size of the variable name.
+    if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the variable name.
+    if ((err = send(socket, &var[0], var_name_size, MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the size of the data.
+    if ((err = send(socket, &data_size, sizeof(data_size), MSG_HAVEMORE)) < 0)
+    {
+        return err;
+    }
+
+    // Send the data.
+    if ((err = send(socket, data, data_size, 0)) < 0)
     {
         return err;
     }

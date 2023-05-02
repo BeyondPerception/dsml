@@ -84,7 +84,8 @@ namespace dsml
             // Check if this program owns the variable.
             if (self != vars[var].owner)
             {
-                throw std::runtime_error("Variable " + var + " is not owned by this program.");
+                request_update(vars[var].owner_socket, var, &value, sizeof(value));
+                return;
             }
 
             *static_cast<T *>(vars[var].data) = value;
@@ -106,7 +107,8 @@ namespace dsml
             // Check if this program owns the variable.
             if (self != vars[var].owner)
             {
-                throw std::runtime_error("Variable " + var + " is not owned by this program.");
+                request_update(vars[var].owner_socket, var, value.data(), value.size() * sizeof(T));
+                return;
             }
 
             free(vars[var].data);
@@ -207,6 +209,8 @@ namespace dsml
         int recv_interest(int socket);
 
         int send_interest(int socket, std::string var);
+
+        int request_update(int socket, std::string var, void *data, size_t data_size);
 
         int accept_connection();
 
