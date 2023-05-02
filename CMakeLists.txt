@@ -8,7 +8,10 @@ include_directories(include/)
 
 add_library(dsml src/dsml.cpp)
 
+add_executable(test test/test.cpp)
 add_executable(demo demo/demo.cpp)
 add_executable(demo2 demo/demo2.cpp)
+
+target_link_libraries(test dsml)
 target_link_libraries(demo dsml)
 target_link_libraries(demo2 dsml)
