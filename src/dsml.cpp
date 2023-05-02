@@ -212,7 +212,6 @@ void State::identification_loop()
     }
 }
 
-
 void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
 {
     std::mutex cv_m;
