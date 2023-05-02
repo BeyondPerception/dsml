@@ -14,18 +14,19 @@
 // MAC and Linux have different names for telling the OS that you have more
 // data to send.
 #ifdef __linux__
-#define MSG_HAVEMORE MSG_MORE
+    #define MSG_HAVEMORE MSG_MORE
 #endif
 
 using namespace dsml;
 
 State::State(std::string config, std::string program_name, int port = 0) : self(program_name)
 {
-    if (std::filesystem::exists(config) == false)
+    if (!std::filesystem::exists(config))
+    {
         throw std::runtime_error("Configuration file does not exist.");
+    }
 
-    bool needs_socket;
-    bool needs_recv;
+    bool needs_socket, needs_recv;
 
     std::ifstream config_file(config);
     std::string line;
@@ -35,6 +36,7 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         // Skip comment lines and empty lines.
         if (line[0] == '#' || line[0] == '\n' || line[0] == '\r')
         {
+            ++i;
             continue;
         }
 
@@ -58,46 +60,66 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         {
             needs_socket = true;
         }
-
-        if (owner != self)
+        else
         {
             needs_recv = true;
         }
 
         create_var(var, type_map[type], owner, is_array == "true");
-        i++;
+        ++i;
     }
 
-    // Add wakeup fd to socket list.
+    // Add wakeup fds to socket lists.
     int pipefd[2];
-    pipe(pipefd);
+    if (pipe(pipefd) < 0)
+    {
+        perror("pipe()");
+        throw std::runtime_error("Failed to create wakeup pipe.");
+    }
     recv_socket_list.push_back(pipefd[0]);
+    recv_wakeup_fd = pipefd[1];
+    if (pipe(pipefd) < 0)
+    {
+        perror("pipe()");
+
+    }
+    client_socket_list.push_back(pipefd[0]);
+    identification_wakeup_fd = pipefd[1];
 
     if (needs_recv)
     {
         recv_thread_running = true;
-        recv_thread = std::thread([this]() {
+        recv_thread = std::thread([this]()
+        {
             while (recv_thread_running)
             {
                 std::unique_lock lk(socket_list_m);
                 // Setup poll structs
-                pollfd* pfds = new pollfd[recv_socket_list.size()];
-                for (int i = 0; i < recv_socket_list.size(); i++) {
+                pollfd pfds[recv_socket_list.size()];
+                for (int i = 0; i < recv_socket_list.size(); i++)
+                {
                     pfds[i].fd = recv_socket_list[i];
                     pfds[i].events = POLLIN;
                 }
 
                 int ret = poll(pfds, recv_socket_list.size(), -1);
 
-                for (int i = 1; i < recv_socket_list.size(); i++) {
-                    if (pfds[i].revents & POLLIN) {
-                        recv_message(pfds[i].fd);
+                for (int i = 1; i < recv_socket_list.size(); i++)
+                {
+                    if (pfds[i].revents & POLLIN)
+                    {
+                        if (recv_message(pfds[i].fd) < 0)
+                        {
+                            close(pfds[i].fd);
+                            recv_socket_list.erase(recv_socket_list.begin() + i);
+                        }
                     }
                 }
 
                 delete[] pfds;
             }
         });
+        recv_thread.detach();
     }
     if (needs_socket)
     {
@@ -128,21 +150,73 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         }
 
         accept_thread_running = true;
-        accept_thread = std::thread([this]() {
+        accept_thread = std::thread([this]()
+        {
             while (accept_thread_running)
             {
                 accept_connection();
             }
         });
+        accept_thread.detach();
+
+        identification_thread_running = true;
+        identification_thread = std::thread([this]()
+        {
+            while (identification_thread_running)
+            {
+                std::unique_lock lk(client_socket_list_m);
+                // Setup poll structs
+                pollfd pfds[client_socket_list.size()];
+                for (int i = 0; i < client_socket_list.size(); i++)
+                {
+                    pfds[i].fd = client_socket_list[i];
+                    pfds[i].events = POLLIN;
+                }
+
+                int ret = poll(pfds, client_socket_list.size(), -1);
+
+                for (int i = 1; i < client_socket_list.size(); i++)
+                {
+                    if (pfds[i].revents & POLLIN)
+                    {
+                        if (recv_interest(pfds[i].fd) < 0)
+                        {
+                            close(pfds[i].fd);
+                            client_socket_list.erase(client_socket_list.begin() + i);
+                        }
+                    }
+                }
+            }
+        });
+        identification_thread.detach();
     }
+}
+
+int State::accept_connection()
+{
+    struct sockaddr_in addr;
+    size_t addr_len = sizeof(addr);
+
+    // Accept connection.
+    int new_socket = accept(server_socket, (struct sockaddr *)&addr, (socklen_t *)&addr_len);
+    if (new_socket < 0)
+    {
+        perror("accept()");
+        return new_socket;
+    }
+
+    write(identification_wakeup_fd, "a", 1);
+    std::unique_lock lk(client_socket_list_m);
+    client_socket_list.push_back(new_socket);
+
+    return 0;
 }
 
 State::~State()
 {
     recv_thread_running = false;
     accept_thread_running = false;
-    recv_thread.join();
-    accept_thread.join();
+    identification_thread_running = false;
     for (auto &var : vars)
     {
         free(var.second.data);
@@ -151,7 +225,7 @@ State::~State()
 
 int State::register_owner(std::string variable_owner, int socket)
 {
-    write(recv_socket_list, "a", 1);
+    write(recv_wakeup_fd, "a", 1);
     std::unique_lock lk (socket_list_m);
     for (auto &var : vars)
     {
@@ -195,26 +269,26 @@ int State::register_owner(std::string variable_owner, std::string owner_ip, int 
 
 void State::create_var(std::string var, Type type, std::string owner, bool is_array)
 {
-    Variable v;
-    v.type = type;
-    v.is_array = is_array;
-    v.owner = owner;
-    v.size = 0;
-    v.owner_socket = -1;
+    Variable v = {type, is_array, 0, owner, -1, nullptr};
+
     if (!is_array)
     {
-        v.data = malloc(type_size(type));        
+        v.data = malloc(type_size(type));
     }
     else
     {
         if (v.type == STRING)
+        {
             throw std::runtime_error("Invalid line in configuration file. Cannot have array of strings.");
+        }
+
         v.data = nullptr;
     }
+
     vars[var] = v;
 }
 
-uint8_t State::type_size(Type type)
+size_t State::type_size(Type type)
 {
     switch (type)
     {
@@ -241,7 +315,7 @@ uint8_t State::type_size(Type type)
     }
 }
 
-int State::receive_message(int socket)
+int State::recv_message(int socket)
 {
     size_t var_name_size, var_data_size;
     std::string var;
@@ -267,10 +341,7 @@ int State::receive_message(int socket)
     }
 
     // Free the old data.
-    if (vars[var].data != nullptr)
-    {
-        free(vars[var].data);
-    }
+    free(vars[var].data);
 
     // Allocate memory for the new data.
     vars[var].data = malloc(var_data_size);
