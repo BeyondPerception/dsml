@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstring>
 #include <mutex>
 #include <stdexcept>
 #include <string>
