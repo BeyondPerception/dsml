@@ -37,6 +37,8 @@ namespace dsml
         {
             check_var_type<T>(var);
 
+            std::unique_lock lk(var_locks[var]);
+
             // Tell the owner that we are interested in this variable.
             if (interested_vars.find(var) == interested_vars.end())
             {
@@ -51,6 +53,8 @@ namespace dsml
         void get(std::string var, std::vector<T> &ret_value)
         {
             check_var_type<std::vector<T>>(var);
+
+            std::unique_lock lk(var_locks[var]);
 
             // Tell the owner that we are interested in this variable.
             if (interested_vars.find(var) == interested_vars.end())
@@ -75,6 +79,8 @@ namespace dsml
         {
             check_var_type<T>(var);
 
+            std::unique_lock lk(var_locks[var]);
+
             // Check if this program owns the variable.
             if (self != vars[var].owner)
             {
@@ -94,6 +100,8 @@ namespace dsml
         void set(std::string var, std::vector<T> value)
         {
             check_var_type<std::vector<T>>(var);
+
+            std::unique_lock lk(var_locks[var]);
 
             // Check if this program owns the variable.
             if (self != vars[var].owner)
@@ -185,6 +193,8 @@ namespace dsml
             int owner_socket;
             void *data;
         };
+
+        std::unordered_map<std::string, std::mutex> var_locks;
 
         std::unordered_map<std::string, Variable> vars;
 
