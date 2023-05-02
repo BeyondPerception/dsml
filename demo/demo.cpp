@@ -26,6 +26,12 @@ int main(int argc, char *argv[])
     std::cout << test2 << "\n";
     std::cout << test3 << "\n";
 
+    system("read");
+
+    std::cout << "Changing TEST2\n";
+
+    dsml.set("TEST2", (uint8_t)7);
+
     while (true)
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 

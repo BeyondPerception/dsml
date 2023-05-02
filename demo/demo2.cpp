@@ -15,5 +15,12 @@ int main(int argc, char *argv[])
     std::cout << (int) test1[0] << (int) test1[1] << (int) test1[2] << " " << test2 << "\n";
     std::cout << test3 << "\n";
 
+    while (true)
+    {
+        test2 = dsml.get<uint8_t>("TEST2");
+        std::cout << "TEST2: " << test2 << "\n";
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
+
     return 0;
 }

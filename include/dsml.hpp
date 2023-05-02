@@ -250,6 +250,12 @@ namespace dsml
 
         void wakeup_thread(std::mutex& m, int fd, std::function<void()> action);
 
+        void recv_loop();
+
+        void accept_loop();
+
+        void identification_loop();
+
         template <typename T>
         void check_var_type(std::string var)
         {

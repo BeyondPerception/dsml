@@ -17,10 +17,6 @@
     #define MSG_HAVEMORE MSG_MORE
 #endif
 
-#ifdef __APPLE__
-    #define MSG_NOSIGNAL 0
-#endif
-
 using namespace dsml;
 
 State::State(std::string config, std::string program_name, int port) : self(program_name)
@@ -93,42 +89,7 @@ State::State(std::string config, std::string program_name, int port) : self(prog
     if (needs_recv)
     {
         recv_thread_running = true;
-        recv_thread = std::thread([this]()
-        {
-            while (recv_thread_running)
-            {
-                std::unique_lock lk(socket_list_m);
-                // Setup poll structs
-                pollfd pfds[recv_socket_list.size()];
-                for (int i = 0; i < recv_socket_list.size(); i++)
-                {
-                    pfds[i].fd = recv_socket_list[i];
-                    pfds[i].events = POLLIN;
-                }
-
-                int ret = poll(pfds, recv_socket_list.size(), -1);
-
-                for (int i = 0; i < recv_socket_list.size(); i++)
-                {
-                    if (pfds[i].revents & POLLIN)
-                    {
-                        if (i == 0)
-                        {
-                            char buf[1];
-                            read(pfds[i].fd, buf, 1);
-                        }
-                        else
-                        {
-                            if (recv_message(pfds[i].fd) < 0)
-                            {
-                                close(pfds[i].fd);
-                                recv_socket_list.erase(recv_socket_list.begin() + i);
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        recv_thread = std::thread(&State::recv_loop, this);
         recv_thread.detach();
     }
     if (needs_socket)
@@ -160,55 +121,97 @@ State::State(std::string config, std::string program_name, int port) : self(prog
         }
 
         accept_thread_running = true;
-        accept_thread = std::thread([this]()
-        {
-            while (accept_thread_running)
-            {
-                accept_connection();
-            }
-        });
+        accept_thread = std::thread(&State::accept_loop, this);
         accept_thread.detach();
 
         identification_thread_running = true;
-        identification_thread = std::thread([this]()
-        {
-            while (identification_thread_running)
-            {
-                std::unique_lock lk(client_socket_list_m);
-                // Setup poll structs
-                pollfd pfds[client_socket_list.size()];
-                for (int i = 0; i < client_socket_list.size(); i++)
-                {
-                    pfds[i].fd = client_socket_list[i];
-                    pfds[i].events = POLLIN;
-                }
-
-                int ret = poll(pfds, client_socket_list.size(), -1);
-
-                for (int i = 0; i < client_socket_list.size(); i++)
-                {
-                    if (pfds[i].revents & POLLIN)
-                    {
-                        if (i == 0)
-                        {
-                            char buf[1];
-                            read(pfds[i].fd, buf, 1);
-                        }
-                        else
-                        {
-                            if (recv_interest(pfds[i].fd) < 0)
-                            {
-                                close(pfds[i].fd);
-                                client_socket_list.erase(client_socket_list.begin() + i);
-                            }
-                        }
-                    }
-                }
-            }
-        });
+        identification_thread = std::thread(&State::identification_loop, this);
         identification_thread.detach();
     }
 }
+
+void State::recv_loop()
+{
+    while (recv_thread_running)
+    {
+        std::unique_lock lk(socket_list_m);
+        // Setup poll structs
+        pollfd pfds[recv_socket_list.size()];
+        for (int i = 0; i < recv_socket_list.size(); i++)
+        {
+            pfds[i].fd = recv_socket_list[i];
+            pfds[i].events = POLLIN;
+        }
+
+        int ret = poll(pfds, recv_socket_list.size(), -1);
+
+        for (int i = 0; i < recv_socket_list.size(); i++)
+        {
+            if (pfds[i].revents & POLLIN)
+            {
+                if (i == 0)
+                {
+                    char buf[1];
+                    read(pfds[i].fd, buf, 1);
+                }
+                else
+                {
+                    if (recv_message(pfds[i].fd) < 0)
+                    {
+                        close(pfds[i].fd);
+                        recv_socket_list.erase(recv_socket_list.begin() + i);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void State::accept_loop()
+{
+    while (accept_thread_running)
+    {
+        accept_connection();
+    }
+}
+
+void State::identification_loop()
+{
+    while (identification_thread_running)
+    {
+        std::unique_lock lk(client_socket_list_m);
+        // Setup poll structs
+        pollfd pfds[client_socket_list.size()];
+        for (int i = 0; i < client_socket_list.size(); i++)
+        {
+            pfds[i].fd = client_socket_list[i];
+            pfds[i].events = POLLIN;
+        }
+
+        int ret = poll(pfds, client_socket_list.size(), -1);
+
+        for (int i = 0; i < client_socket_list.size(); i++)
+        {
+            if (pfds[i].revents & POLLIN)
+            {
+                if (i == 0)
+                {
+                    char buf[1];
+                    read(pfds[i].fd, buf, 1);
+                }
+                else
+                {
+                    if (recv_interest(pfds[i].fd) < 0)
+                    {
+                        close(pfds[i].fd);
+                        client_socket_list.erase(client_socket_list.begin() + i);
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
 {
