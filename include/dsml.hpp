@@ -39,9 +39,9 @@ namespace dsml
         template <typename T>
         void get(std::string var, T &ret_value)
         {
-            check_var_type<T>(var);
-
             std::unique_lock lk(var_locks[var]);
+
+            check_var_type<T>(var);
 
             // Tell the owner that we are interested in this variable.
             if (vars[var].owner != self && interested_vars.find(var) == interested_vars.end())
@@ -60,9 +60,9 @@ namespace dsml
         template <typename T>
         void get(std::string var, std::vector<T> &ret_value)
         {
-            check_var_type<std::vector<T>>(var);
-
             std::unique_lock lk(var_locks[var]);
+
+            check_var_type<std::vector<T>>(var);
 
             // Tell the owner that we are interested in this variable.
             if (vars[var].owner != self && interested_vars.find(var) == interested_vars.end())
@@ -89,9 +89,9 @@ namespace dsml
         template <typename T>
         void set(std::string var, T value)
         {
-            check_var_type<T>(var);
-
             std::unique_lock lk(var_locks[var]);
+
+            check_var_type<T>(var);
 
             // Check if this program owns the variable.
             if (self != vars[var].owner)
@@ -122,9 +122,9 @@ namespace dsml
         template <typename T>
         void set(std::string var, std::vector<T> value)
         {
-            check_var_type<std::vector<T>>(var);
-
             std::unique_lock lk(var_locks[var]);
+
+            check_var_type<std::vector<T>>(var);
 
             // Check if this program owns the variable.
             if (self != vars[var].owner)
