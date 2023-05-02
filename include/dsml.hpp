@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <stdexcept>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -47,7 +48,8 @@ namespace dsml
 
         int server_socket;
 
-        std::vector<int> socket_list;
+        std::mutex socket_list_m;
+        std::vector<int> recv_socket_list;
 
         std::unordered_map<std::string, int> subscriber_list;
 
