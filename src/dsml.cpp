@@ -68,29 +68,30 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
         i++;
     }
 
+    // Add wakeup fd to socket list.
+    int pipefd[2];
+    pipe(pipefd);
+    recv_socket_list.push_back(pipefd[0]);
+
     if (needs_recv)
     {
         recv_thread_running = true;
         recv_thread = std::thread([this]() {
             while (recv_thread_running)
             {
+                std::unique_lock lk(socket_list_m);
                 // Setup poll structs
-                pollfd* pfds = new pollfd[socket_list.size()];
-                for (int i = 0; i < socket_list.size(); i++) {
-                    pfds[i].fd = socket_list[i];
+                pollfd* pfds = new pollfd[recv_socket_list.size()];
+                for (int i = 0; i < recv_socket_list.size(); i++) {
+                    pfds[i].fd = recv_socket_list[i];
                     pfds[i].events = POLLIN;
                 }
 
-                int ret = poll(pfds, socket_list.size(), -1);
+                int ret = poll(pfds, recv_socket_list.size(), -1);
 
-                for (int i = 0; i < socket_list.size(); i++) {
-                    // Check if socket available is wakeup socket.
-                    if (i == 0)
-                    {
-                           
-                    }
+                for (int i = 1; i < recv_socket_list.size(); i++) {
                     if (pfds[i].revents & POLLIN) {
-                        receive_message(pfds[i].fd);
+                        recv_message(pfds[i].fd);
                     }
                 }
 
@@ -150,6 +151,8 @@ State::~State()
 
 int State::register_owner(std::string variable_owner, int socket)
 {
+    write(recv_socket_list, "a", 1);
+    std::unique_lock lk (socket_list_m);
     for (auto &var : vars)
     {
         if (var.second.owner == variable_owner)
