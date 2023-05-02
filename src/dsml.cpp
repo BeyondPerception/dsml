@@ -563,10 +563,8 @@ int State::recv_interest(int socket)
 
     for (auto &socket : subscriber_list[var])
     {
-        if ((err = send_message(socket, var)) < 0)
-        {
-            return err;
-        }
+        // Ignore errors so all subscribers are notified.
+        send_message(socket, var);
     }
     
     return 0;

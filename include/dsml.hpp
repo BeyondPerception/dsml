@@ -246,7 +246,7 @@ namespace dsml
         int request_update(int socket, std::string var, void *data, int data_size);
 
         int accept_connection();
-
+        
         void wakeup_thread(std::mutex &m, int fd, std::function<void()> action);
 
         void recv_loop();
