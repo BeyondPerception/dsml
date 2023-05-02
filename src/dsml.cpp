@@ -221,11 +221,14 @@ void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
     std::atomic<bool> through;
     std::thread t([&](){
         m.lock();
+        std::cout << "lock ackd\n";
         acquired = true;
         std::unique_lock lk(cv_m);
         cv.wait(lk);
+        std::cout << "cv\n";
         through = true;
         m.unlock();
+        std::cout << "lock unackd\n";
     });
     while (!acquired)
         write(fd, "a", 1);
