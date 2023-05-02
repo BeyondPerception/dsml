@@ -6,6 +6,7 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace dsml
@@ -36,7 +37,11 @@ namespace dsml
             check_var_type<T>(var);
 
             // Tell the owner that we are interested in this variable.
-            send_interest(vars[var].owner_socket, var);
+            if (interested_vars.find(var) == interested_vars.end())
+            {
+                send_interest(vars[var].owner_socket, var);
+                interested_vars.insert(var);
+            }
 
             ret_value = *static_cast<T *>(vars[var].data);
         }
@@ -47,7 +52,11 @@ namespace dsml
             check_var_type<std::vector<T>>(var);
 
             // Tell the owner that we are interested in this variable.
-            send_interest(vars[var].owner_socket, var);
+            if (interested_vars.find(var) == interested_vars.end())
+            {
+                send_interest(vars[var].owner_socket, var);
+                interested_vars.insert(var);
+            }
 
             ret_value = std::vector<T>(static_cast<T *>(vars[var].data),
                                        static_cast<T *>(vars[var].data) + vars[var].size);
@@ -110,6 +119,8 @@ namespace dsml
         std::thread accept_thread;
 
         std::thread identification_thread;
+
+        std::unordered_set<std::string> interested_vars;
 
         int server_socket;
 
