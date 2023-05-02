@@ -465,6 +465,7 @@ int State::recv_message(int socket)
 
 int State::send_message(int socket, std::string var)
 {
+    std::unique_lock lk(var_locks[var]);
     int var_name_size = var.size(),
         var_data_size = vars[var].size * type_size(vars[var].type);
     int err;
