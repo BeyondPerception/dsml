@@ -11,15 +11,19 @@
 
 #include <dsml.hpp>
 
+#define SEND_FLAGS MSG_HAVEMORE
+
 // MAC and Linux have different names for telling the OS that you have more
 // data to send.
 #ifdef __linux__
     #define MSG_HAVEMORE MSG_MORE
+    #undef SEND_FLAGS
+    #define SEND_FLAGS MSG_HAVEMORE | MSG_NOSIGNAL
 #endif
 
 using namespace dsml;
 
-State::State(std::string config, std::string program_name, int port = 0) : self(program_name)
+State::State(std::string config, std::string program_name, int port) : self(program_name)
 {
     if (!std::filesystem::exists(config))
     {
@@ -115,8 +119,6 @@ State::State(std::string config, std::string program_name, int port = 0) : self(
                         }
                     }
                 }
-
-                delete[] pfds;
             }
         });
         recv_thread.detach();
@@ -204,6 +206,29 @@ int State::accept_connection()
         perror("accept()");
         return new_socket;
     }
+
+    // Enable TCP KeepAlive to ensure that we are notified if the leader goes down.
+    int enable = 1;
+    if (setsockopt(new_socket, SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(int)) < 0)
+    {
+        perror("setsockopt()");
+        return -1;
+    }
+
+    struct linger lo = {1, 0};
+    if (setsockopt(new_socket, SOL_SOCKET, SO_LINGER, &lo, sizeof(lo)) < 0)
+    {
+        perror("setsockopt()");
+        return -1;
+    }
+
+#ifdef __APPLE__
+    if (setsockopt(new_socket, SOL_SOCKET, SO_NOSIGPIPE, (void *)&enable, sizeof(int)) < 0)
+    {
+        perror("setsockopt()");
+        return -1;
+    }
+#endif
 
     write(identification_wakeup_fd, "a", 1);
     std::unique_lock lk(client_socket_list_m);
