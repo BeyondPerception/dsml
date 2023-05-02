@@ -1,5 +1,7 @@
+#include <chrono>
 #include <iostream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <dsml.hpp>
@@ -221,6 +223,7 @@ void test_hard(dsml::State &dsml1, dsml::State &dsml2)
     dsml1.set("TEST12", std::string("Goodbye world!"));
 
     // Test `get` again.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     test(dsml2.get<int8_t>("TEST1") == 42, "set/get INT8 again");
     test(dsml2.get<std::vector<int8_t>>("TEST11") == std::vector<int8_t>{-1, 0, 1, 42}, "set/get ARRAY again");
     test(dsml2.get<std::string>("TEST12") == "Goodbye world!", "set/get STRING again");
@@ -231,6 +234,7 @@ void test_hard(dsml::State &dsml1, dsml::State &dsml2)
     dsml2.set("TEST12", std::string("..."));
 
     // Test `get` after requesting updates.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     test(dsml1.get<int8_t>("TEST1") == 24, "set/get INT8 request update");
     test(dsml1.get<std::vector<int8_t>>("TEST11") == std::vector<int8_t>{-24, 24}, "set/get ARRAY request update");
     test(dsml1.get<std::string>("TEST12") == "...", "set/get STRING request update");
