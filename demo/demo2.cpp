@@ -10,8 +10,10 @@ int main(int argc, char *argv[])
 
     auto test1 = dsml.get<std::vector<int8_t>>("TEST1");
     int test2 = dsml.get<uint8_t>("TEST2");
+    auto test3 = dsml.get<std::string>("TEST3");
 
     std::cout << (int) test1[0] << (int) test1[1] << (int) test1[2] << " " << test2 << "\n";
+    std::cout << test3 << "\n";
 
     return 0;
 }
