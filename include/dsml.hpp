@@ -1,8 +1,8 @@
 #pragma once
 
 #include <atomic>
-#include <stdexcept>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -24,18 +24,33 @@ namespace dsml
         template <typename T>
         T get(std::string var)
         {
+            T v;
+            get(var, v);
+
+            return v;
+        }
+
+        template <typename T>
+        void get(std::string var, T &ret_value)
+        {
             check_var_type<T>(var);
 
             // Tell the owner that we are interested in this variable.
             send_interest(vars[var].owner_socket, var);
 
-            if (vars[var].is_array)
-            {
-                return std::vector<T>(static_cast<T *>(vars[var].data),
-                                      static_cast<T *>(vars[var].data) + vars[var].size);
-            }
+            ret_value = *static_cast<T *>(vars[var].data);
+        }
 
-            return *static_cast<T *>(vars[var].data);
+        template <typename T>
+        void get(std::string var, std::vector<T> &ret_value)
+        {
+            check_var_type<std::vector<T>>(var);
+
+            // Tell the owner that we are interested in this variable.
+            send_interest(vars[var].owner_socket, var);
+
+            ret_value = std::vector<T>(static_cast<T *>(vars[var].data),
+                                       static_cast<T *>(vars[var].data) + vars[var].size);
         }
 
         template <typename T>
@@ -50,6 +65,29 @@ namespace dsml
             }
 
             *static_cast<T *>(vars[var].data) = value;
+
+            // Send the message to all subscribers.
+            for (auto &socket : subscriber_list[var])
+            {
+                send_message(socket, var);
+            }
+        }
+
+        template <typename T>
+        void set(std::string var, std::vector<T> value)
+        {
+            check_var_type<std::vector<T>>(var);
+
+            // Check if this program owns the variable.
+            if (self != vars[var].owner)
+            {
+                throw std::runtime_error("Variable " + var + " is not owned by this program.");
+            }
+
+            free(vars[var].data);
+            vars[var].data = malloc(value.size() * sizeof(T));
+            vars[var].size = value.size();
+            memcpy(vars[var].data, value.data(), value.size() * sizeof(T));
 
             // Send the message to all subscribers.
             for (auto &socket : subscriber_list[var])
