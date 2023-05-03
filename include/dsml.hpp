@@ -52,7 +52,7 @@ namespace dsml
          * @return 0 on success, -1 on failure.
          */
         int register_owner(std::string variable_owner, int socket);
-        
+
         /**
          * Get the variable stored in the state.
          *
@@ -210,6 +210,8 @@ namespace dsml
 
         /**
          * Waits indefinitely until `var` is changed.
+         *
+         * @param var Name of the variable.
          */
         void wait(std::string var)
         {
@@ -219,9 +221,15 @@ namespace dsml
 
         /**
          * Waits for `rel_time` or until `var` is changed.
+         *
+         * @tparam Rep Number of ticks.
+         * @tparam Period Tick period.
+         * @param var Name of the variable.
+         * @param rel_time Maximum duration to wait.
+         * @return Whether the variable was changed.
          */
         template <class Rep, class Period>
-        bool wait_for(std::string var, const std::chrono::duration<Rep, Period>& rel_time)
+        bool wait_for(std::string var, const std::chrono::duration<Rep, Period> &rel_time)
         {
             std::unique_lock lk(var_locks[var]);
             return var_cvs[var].wait_for(lk, rel_time) == std::cv_status::no_timeout;
