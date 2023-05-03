@@ -21,12 +21,13 @@ using namespace dsml;
 
 State::State(std::string config, std::string program_name, int port) : self(program_name)
 {
+    // Check if configuration file exists.
     if (!std::filesystem::exists(config))
     {
         throw std::runtime_error("Configuration file does not exist.");
     }
 
-    bool needs_socket, needs_recv;
+    bool needs_socket = false, needs_recv = false;
 
     std::ifstream config_file(config);
     std::string line;
@@ -40,6 +41,7 @@ State::State(std::string config, std::string program_name, int port) : self(prog
             continue;
         }
 
+        // Parse line.
         std::istringstream iss(line);
         std::string var, type, owner, is_array;
 
@@ -69,13 +71,14 @@ State::State(std::string config, std::string program_name, int port) : self(prog
         ++i;
     }
 
-    // Add wakeup fds to socket lists.
+    // Create wakeup pipes.
     int pipefd[2];
     if (pipe(pipefd) < 0)
     {
         perror("pipe()");
         throw std::runtime_error("Failed to create wakeup pipe.");
     }
+
     recv_socket_list.push_back(pipefd[0]);
     recv_wakeup_fd = pipefd[1];
     if (pipe(pipefd) < 0)
@@ -83,16 +86,20 @@ State::State(std::string config, std::string program_name, int port) : self(prog
         perror("pipe()");
         throw std::runtime_error("Failed to create wakeup pipe.");
     }
+
     client_socket_list.push_back(pipefd[0]);
     identification_wakeup_fd = pipefd[1];
     server_socket = -1;
 
+    // Handle `needs_recv`.
     if (needs_recv)
     {
         recv_thread_running = true;
         recv_thread = std::thread(&State::recv_loop, this);
         recv_thread.detach();
     }
+
+    // Handle `needs_socket`.
     if (needs_socket)
     {
         server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -123,6 +130,7 @@ State::State(std::string config, std::string program_name, int port) : self(prog
             perror("bind()");
             throw std::runtime_error("Could not bind socket.");
         }
+
         ret = listen(server_socket, 5);
         if (ret < 0)
         {
@@ -145,9 +153,10 @@ void State::recv_loop()
     while (recv_thread_running)
     {
         std::unique_lock lk(socket_list_m);
-        // Setup poll structs
+
+        // Set up poll structures.
         pollfd pfds[recv_socket_list.size()];
-        for (int i = 0; i < recv_socket_list.size(); i++)
+        for (int i = 0; i < recv_socket_list.size(); ++i)
         {
             pfds[i].fd = recv_socket_list[i];
             pfds[i].events = POLLIN;
@@ -155,7 +164,7 @@ void State::recv_loop()
 
         int ret = poll(pfds, recv_socket_list.size(), -1);
 
-        for (int i = 0; i < recv_socket_list.size(); i++)
+        for (int i = 0; i < recv_socket_list.size(); ++i)
         {
             if (pfds[i].revents & POLLIN)
             {
@@ -190,9 +199,10 @@ void State::identification_loop()
     while (identification_thread_running)
     {
         std::unique_lock lk(client_socket_list_m);
-        // Setup poll structs
+
+        // Set up poll structures.
         pollfd pfds[client_socket_list.size()];
-        for (int i = 0; i < client_socket_list.size(); i++)
+        for (int i = 0; i < client_socket_list.size(); ++i)
         {
             pfds[i].fd = client_socket_list[i];
             pfds[i].events = POLLIN;
@@ -200,7 +210,7 @@ void State::identification_loop()
 
         int ret = poll(pfds, client_socket_list.size(), -1);
 
-        for (int i = 0; i < client_socket_list.size(); i++)
+        for (int i = 0; i < client_socket_list.size(); ++i)
         {
             if (pfds[i].revents & POLLIN)
             {
@@ -222,12 +232,11 @@ void State::identification_loop()
     }
 }
 
-void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
+void State::wakeup_thread(std::mutex &m, int fd, std::function<void()> action)
 {
     std::mutex cv_m;
     std::condition_variable cv;
-    std::atomic<bool> acquired = false;
-    std::atomic<bool> through = false;
+    std::atomic<bool> acquired = false, through = false;
     std::thread t([&]()
     {
         m.lock();
@@ -237,11 +246,15 @@ void State::wakeup_thread(std::mutex& m, int fd, std::function<void()> action)
         through = true;
         m.unlock();
     });
-    while (!acquired) 
+    while (!acquired)
+    {
         write(fd, "a", 1);
+    }
     action();
     while (!through)
+    {
         cv.notify_all();
+    }
     t.join();
 }
 
@@ -294,19 +307,24 @@ State::~State()
     recv_thread_running = false;
     accept_thread_running = false;
     identification_thread_running = false;
+
     write(identification_wakeup_fd, "a", 1);
     write(recv_wakeup_fd, "a", 1);
+
     close(identification_wakeup_fd);
     close(recv_wakeup_fd);
     close(server_socket);
+
     for (auto socket : recv_socket_list)
     {
         close(socket);
     }
+
     for (auto socket : client_socket_list)
     {
         close(socket);
     }
+
     for (auto &var : vars)
     {
         free(var.second.data);
@@ -332,7 +350,7 @@ int State::register_owner(std::string variable_owner, int socket)
 
 int State::register_owner(std::string variable_owner, std::string owner_ip, int owner_port)
 {
-    // Connect to ip/port.
+    // Connect to IP/port.
     int sock;
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
@@ -415,8 +433,9 @@ size_t State::type_size(Type type)
 void State::notify_subscribers(std::string var)
 {
     std::unique_lock lk(subscriber_list_m);
+
     // Send the message to all subscribers.
-    for (int i = subscriber_list[var].size() - 1; i >= 0; i--)
+    for (int i = subscriber_list[var].size() - 1; i >= 0; --i)
     {
         int socket = subscriber_list[var][i];
         int ret = send_message(socket, var);
@@ -476,17 +495,16 @@ int State::recv_message(int socket)
     }
 
     // Read the data.
-    size_t dataIndex = 0;
-    size_t bytesToRead = var_data_size;
-    while (bytesToRead > 0)
+    size_t data_index = 0, bytes_to_read = var_data_size;
+    while (bytes_to_read > 0)
     {
-        err = read(socket, &((char*)vars[var].data)[dataIndex], bytesToRead);
+        err = read(socket, &((char *)vars[var].data)[data_index], bytes_to_read);
         if (err < 0)
         {
             return err;
         }
-        bytesToRead -= err;
-        dataIndex += err;
+        bytes_to_read -= err;
+        data_index += err;
     }
 
     // Update the size of the variable.
@@ -537,7 +555,7 @@ int State::recv_interest(int socket)
     bool is_request;
     int err;
 
-    // Check if this is an interest message or an update_request.
+    // Check if this is an interest message or an update request.
     if ((err = read(socket, &is_request, 1)) <= 0)
     {
         return (err == 0) ? -1 : err;
@@ -585,17 +603,16 @@ int State::recv_interest(int socket)
         }
 
         // Read the data.
-        size_t dataIndex = 0;
-        size_t bytesToRead = var_data_size;
-        while (bytesToRead > 0)
+        size_t data_index = 0, bytes_to_read = var_data_size;
+        while (bytes_to_read > 0)
         {
-            err = read(socket, &((char*)vars[var].data)[dataIndex], bytesToRead);
+            err = read(socket, &((char *)vars[var].data)[data_index], bytes_to_read);
             if (err < 0)
             {
                 return err;
             }
-            bytesToRead -= err;
-            dataIndex += err;
+            bytes_to_read -= err;
+            data_index += err;
         }
 
         // Update the size of the variable.
@@ -609,7 +626,7 @@ int State::recv_interest(int socket)
         // Add the socket to the subscriber list.
         subscriber_list[var].push_back(socket);
     }
-    
+
     lk.unlock();
     notify_subscribers(var);
 
@@ -654,7 +671,7 @@ int State::request_update(int socket, std::string var, void *data, int data_size
     {
         return err;
     }
-    
+
     // Send the size of the variable name.
     if ((err = send(socket, &var_name_size, sizeof(var_name_size), MSG_HAVEMORE | MSG_NOSIGNAL)) < 0)
     {
