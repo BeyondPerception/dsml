@@ -102,6 +102,15 @@ State::State(std::string config, std::string program_name, int port) : self(prog
             throw std::runtime_error("Could not create socket.");
         }
 
+        // Enable SO_REUSEADDR so that we do not get bind() errors if the previous
+        // socket is stuck in TIME_WAIT or has not been released by the OS.
+        int enable = 1;
+        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int)) < 0)
+        {
+            perror("setsockopt()");
+            exit(1);
+        }
+
         struct sockaddr_in address;
         address.sin_family = AF_INET;
         address.sin_addr.s_addr = INADDR_ANY;
