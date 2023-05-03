@@ -451,20 +451,35 @@ void State::notify_subscribers(std::string var)
     }
 }
 
+int read_all_bytes(int socket, void* buf, size_t size)
+{
+    size_t bytes_read = 0;
+    while (bytes_read < size)
+    {
+        int ret = read(socket, (char*) buf + bytes_read, size - bytes_read);
+        if (ret < 0)
+        {
+            return ret;
+        }
+        bytes_read += ret;
+    }
+    return bytes_read;
+}
+
 int State::recv_message(int socket)
 {
     int var_name_size, var_data_size;
     int err;
 
     // Read the size of the variable name.
-    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) <= 0)
+    if ((err = read_all_bytes(socket, &var_name_size, sizeof(var_name_size))) <= 0)
     {
         return (err == 0) ? -1 : err;
     }
 
     // Read the variable name.
     std::string var(var_name_size, 0);
-    if ((err = read(socket, &var[0], var_name_size)) < 0)
+    if ((err = read_all_bytes(socket, &var[0], var_name_size)) < 0)
     {
         return err;
     }
@@ -480,7 +495,7 @@ int State::recv_message(int socket)
     std::unique_lock lk(var_locks[var]);
 
     // Read the size of the data.
-    if ((err = read(socket, &var_data_size, sizeof(var_data_size))) < 0)
+    if ((err = read_all_bytes(socket, &var_data_size, sizeof(var_data_size))) < 0)
     {
         return err;
     }
@@ -497,16 +512,9 @@ int State::recv_message(int socket)
     }
 
     // Read the data.
-    size_t data_index = 0, bytes_to_read = var_data_size;
-    while (bytes_to_read > 0)
+    if ((err = read_all_bytes(socket, vars[var].data, var_data_size)) < 0)
     {
-        err = read(socket, &((char *)vars[var].data)[data_index], bytes_to_read);
-        if (err < 0)
-        {
-            return err;
-        }
-        bytes_to_read -= err;
-        data_index += err;
+        return err;
     }
 
     // Update the size of the variable.
@@ -558,20 +566,20 @@ int State::recv_interest(int socket)
     int err;
 
     // Check if this is an interest message or an update request.
-    if ((err = read(socket, &is_request, 1)) <= 0)
+    if ((err = read_all_bytes(socket, &is_request, 1)) <= 0)
     {
         return (err == 0) ? -1 : err;
     }
 
     // Read the size of the variable name.
-    if ((err = read(socket, &var_name_size, sizeof(var_name_size))) < 0)
+    if ((err = read_all_bytes(socket, &var_name_size, sizeof(var_name_size))) < 0)
     {
         return err;
     }
 
     // Read the variable name.
     std::string var(var_name_size, 0);
-    if ((err = read(socket, &var[0], var_name_size)) < 0)
+    if ((err = read_all_bytes(socket, &var[0], var_name_size)) < 0)
     {
         return err;
     }
@@ -590,7 +598,7 @@ int State::recv_interest(int socket)
     if (is_request)
     {
         // Read the size of the data.
-        if ((err = read(socket, &var_data_size, sizeof(var_data_size))) < 0)
+        if ((err = read_all_bytes(socket, &var_data_size, sizeof(var_data_size))) < 0)
         {
             return err;
         }
@@ -607,16 +615,9 @@ int State::recv_interest(int socket)
         }
 
         // Read the data.
-        size_t data_index = 0, bytes_to_read = var_data_size;
-        while (bytes_to_read > 0)
+        if ((err = read_all_bytes(socket, vars[var].data, var_data_size)) < 0)
         {
-            err = read(socket, &((char *)vars[var].data)[data_index], bytes_to_read);
-            if (err < 0)
-            {
-                return err;
-            }
-            bytes_to_read -= err;
-            data_index += err;
+            return err;
         }
 
         // Update the size of the variable.
