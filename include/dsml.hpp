@@ -52,7 +52,7 @@ namespace dsml
          * @return 0 on success, -1 on failure.
          */
         int register_owner(std::string variable_owner, int socket);
-
+        
         /**
          * Get the variable stored in the state.
          *
@@ -160,6 +160,7 @@ namespace dsml
             }
 
             *static_cast<T *>(vars[var].data) = value;
+            var_cvs[var].notify_all();
 
             lk.unlock();
             notify_subscribers(var);
@@ -190,6 +191,7 @@ namespace dsml
             vars[var].data = malloc(value.size() * sizeof(T));
             vars[var].size = value.size();
             memcpy(vars[var].data, value.data(), value.size() * sizeof(T));
+            var_cvs[var].notify_all();
 
             lk.unlock();
             notify_subscribers(var);
@@ -204,6 +206,25 @@ namespace dsml
         void set(std::string var, std::string value)
         {
             set(var, std::vector<char>(value.begin(), value.end()));
+        }
+
+        /**
+         * Waits indefinitely until `var` is changed.
+         */
+        void wait(std::string var)
+        {
+            std::unique_lock lk(var_locks[var]);
+            var_cvs[var].wait(lk);
+        }
+
+        /**
+         * Waits for `rel_time` or until `var` is changed.
+         */
+        template <class Rep, class Period>
+        bool wait_for(std::string var, const std::chrono::duration<Rep, Period>& rel_time)
+        {
+            std::unique_lock lk(var_locks[var]);
+            return var_cvs[var].wait_for(lk, rel_time) == std::cv_status::no_timeout;
         }
 
     private:
