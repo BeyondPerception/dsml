@@ -469,6 +469,8 @@ int State::recv_message(int socket)
         return err;
     }
 
+    std::cout << "message var: " << var << "\n";
+
     // Check if the variable exists.
     if (vars.find(var) == vars.end())
     {
@@ -573,6 +575,8 @@ int State::recv_interest(int socket)
     {
         return err;
     }
+
+    std::cout << "interest var: " << var << "\n";
 
     // Check if the variable exists.
     if (vars.find(var) == vars.end())
