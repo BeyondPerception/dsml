@@ -20,14 +20,46 @@ namespace dsml
     class State
     {
     public:
+        /**
+         * Construct a new `State` object.
+         *
+         * @param config Path to the configuration file.
+         * @param program_name Name of the program.
+         * @param port Port on which to listen.
+         */
         State(std::string config, std::string program_name, int port = 0);
 
+        /**
+         * Destroy the `State` object.
+         */
         ~State();
 
+        /**
+         * Register the owner of a variable.
+         *
+         * @param variable_owner Name of the owner program.
+         * @param owner_ip IP address of the owner program.
+         * @param owner_port Port of the owner program.
+         * @return 0 on success, -1 on failure.
+         */
         int register_owner(std::string variable_owner, std::string owner_ip, int owner_port);
 
+        /**
+         * Register the owner of a variable.
+         *
+         * @param variable_owner Name of the owner program.
+         * @param socket Socket of the owner program.
+         * @return 0 on success, -1 on failure.
+         */
         int register_owner(std::string variable_owner, int socket);
 
+        /**
+         * Get the variable stored in the state.
+         *
+         * @tparam T Type of the variable.
+         * @param var Name of the variable.
+         * @return The variable.
+         */
         template <typename T>
         T get(std::string var)
         {
@@ -36,6 +68,13 @@ namespace dsml
             return v;
         }
 
+        /**
+         * Get the variable stored in the state.
+         *
+         * @tparam T Type of the variable.
+         * @param var Name of the variable.
+         * @param ret_value Where to store the variable.
+         */
         template <typename T>
         void get(std::string var, T &ret_value)
         {
@@ -57,6 +96,13 @@ namespace dsml
             ret_value = *static_cast<T *>(vars[var].data);
         }
 
+        /**
+         * Get the variable stored in the state.
+         *
+         * @tparam T Type of the variable.
+         * @param var Name of the variable.
+         * @param ret_value Where to store the variable.
+         */
         template <typename T>
         void get(std::string var, std::vector<T> &ret_value)
         {
@@ -79,6 +125,12 @@ namespace dsml
                                        static_cast<T *>(vars[var].data) + vars[var].size);
         }
 
+        /**
+         * Get the variable stored in the state.
+         *
+         * @param var Name of the variable.
+         * @param ret_value Where to store the variable.
+         */
         void get(std::string var, std::string &ret_value)
         {
             std::vector<char> v;
@@ -86,6 +138,13 @@ namespace dsml
             ret_value = std::string(v.begin(), v.end());
         }
 
+        /**
+         * Set the variable stored in the state.
+         *
+         * @tparam T Type of the variable.
+         * @param var Name of the variable.
+         * @param value New value of the variable.
+         */
         template <typename T>
         void set(std::string var, T value)
         {
@@ -106,6 +165,13 @@ namespace dsml
             notify_subscribers(var);
         }
 
+        /**
+         * Set the variable stored in the state.
+         *
+         * @tparam T Type of the variable.
+         * @param var Name of the variable.
+         * @param value New value of the variable.
+         */
         template <typename T>
         void set(std::string var, std::vector<T> value)
         {
@@ -129,42 +195,90 @@ namespace dsml
             notify_subscribers(var);
         }
 
+        /**
+         * Set the variable stored in the state.
+         *
+         * @param var Name of the variable.
+         * @param value New value of the variable.
+         */
         void set(std::string var, std::string value)
         {
             set(var, std::vector<char>(value.begin(), value.end()));
         }
 
     private:
+        /**
+         * Self program name.
+         */
         std::string self;
 
+        /**
+         * Whether the `recv_thread` is running.
+         */
         std::atomic<bool> recv_thread_running;
 
+        /**
+         * Whether the `accept_thread` is running.
+         */
         std::atomic<bool> accept_thread_running;
 
+        /**
+         * Whether the `identification_thread` is running.
+         */
         std::atomic<bool> identification_thread_running;
 
+        /**
+         * Thread for receiving data from other programs.
+         */
         std::thread recv_thread;
 
+        /**
+         * Thread for accepting new connections.
+         */
         std::thread accept_thread;
 
+        /**
+         * Thread for identifying other programs.
+         */
         std::thread identification_thread;
 
+        /**
+         * Set of variables that this program is interested in.
+         */
         std::unordered_set<std::string> interested_vars;
 
+        /**
+         * Socket for the server.
+         */
         int server_socket;
 
+        /**
+         * File descriptors for waking up the threads.
+         */
         int recv_wakeup_fd;
         int identification_wakeup_fd;
 
+        /**
+         * Mutex for the `recv_socket_list` list.
+         */
         std::mutex socket_list_m;
         std::vector<int> recv_socket_list;
 
+        /**
+         * Mutex for the `client_socket_list` list.
+         */
         std::mutex client_socket_list_m;
         std::vector<int> client_socket_list;
 
+        /**
+         * Mutex for the `subscriber_list` list.
+         */
         std::mutex subscriber_list_m;
         std::unordered_map<std::string, std::vector<int>> subscriber_list;
 
+        /**
+         * Enumerates the types of variables.
+         */
         enum Type : uint8_t
         {
             INT8,
@@ -180,9 +294,17 @@ namespace dsml
             STRING,
         };
 
+        /**
+         * Get the size of a type.
+         *
+         * @param type Type of variable.
+         * @return Size of the type.
+         */
         size_t type_size(Type type);
 
-        // Maps a string to a `Type` enum.
+        /**
+         * Maps a string to a `Type` enum.
+         */
         std::unordered_map<std::string, Type> type_map = {
             {"INT8", INT8},
             {"INT16", INT16},
@@ -197,6 +319,9 @@ namespace dsml
             {"STRING", STRING},
         };
 
+        /**
+         * Structure for storing a variable.
+         */
         struct Variable
         {
             Type type;
@@ -207,35 +332,116 @@ namespace dsml
             void *data;
         };
 
+        /**
+         * Variable condition variables and locks.
+         */
         std::unordered_map<std::string, std::condition_variable> var_cvs;
         std::unordered_map<std::string, std::mutex> var_locks;
 
+        /**
+         * Map of variables.
+         */
         std::unordered_map<std::string, Variable> vars;
 
+        /**
+         * Create a variable.
+         *
+         * @param var Name of the variable.
+         * @param type Type of the variable.
+         * @param owner Name of the program that owns the variable.
+         * @param is_array Whether the variable is an array.
+         */
         void create_var(std::string var, Type type, std::string owner, bool is_array);
 
+        /**
+         * Receive a message from a socket.
+         *
+         * @param socket Socket to receive from.
+         * @return 0 on success, -1 on failure.
+         */
         int recv_message(int socket);
 
+        /**
+         * Send a message to a socket.
+         *
+         * @param socket Socket to send to.
+         * @param var Name of the variable.
+         * @return 0 on success, -1 on failure.
+         */
         int send_message(int socket, std::string var);
 
+        /**
+         * Receive an interest message from a socket.
+         *
+         * @param socket Socket to receive from.
+         * @return 0 on success, -1 on failure.
+         */
         int recv_interest(int socket);
 
+        /**
+         * Send an interest message to a socket.
+         *
+         * @param socket Socket to send to.
+         * @param var Name of the variable.
+         * @return 0 on success, -1 on failure.
+         */
         int send_interest(int socket, std::string var);
 
+        /**
+         * Send a request to update a variable.
+         *
+         * @param socket Socket to send to.
+         * @param var Name of the variable.
+         * @param data New data.
+         * @param data_size Size of the new data.
+         * @return 0 on success, -1 on failure.
+         */
         int request_update(int socket, std::string var, void *data, int data_size);
 
+        /**
+         * Accept a connection.
+         *
+         * @return 0 on success, -1 on failure.
+         */
         int accept_connection();
-        
+
+        /**
+         * Wake up a thread.
+         *
+         * @param m Mutex to lock.
+         * @param fd File descriptor to write to.
+         * @param action Action to perform after writing to the file descriptor.
+         */
         void wakeup_thread(std::mutex &m, int fd, std::function<void()> action);
 
+        /**
+         * Receive loop for the server.
+         */
         void recv_loop();
 
+        /**
+         * Accept loop for the server.
+         */
         void accept_loop();
 
+        /**
+         * Identification loop for the server.
+         */
         void identification_loop();
 
+        /**
+         * Send a message to all subscribers of a variable.
+         *
+         * @param var Name of the variable.
+         */
         void notify_subscribers(std::string var);
 
+        /**
+         * Check if a variable exists and is of the correct type.
+         *
+         * @tparam T Type to check for.
+         * @param var Name of the variable.
+         */
         template <typename T>
         void check_var_type(std::string var)
         {
