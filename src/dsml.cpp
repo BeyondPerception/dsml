@@ -380,7 +380,7 @@ int State::register_owner(std::string variable_owner, std::string owner_ip, int 
 
 void State::create_var(std::string var, Type type, std::string owner, bool is_array)
 {
-    Variable v = {type, is_array, 1, owner, -1, nullptr};
+    Variable v = {type, is_array, 1, owner, -1, nullptr, std::chrono::system_clock::now()};
 
     if (!is_array)
     {
@@ -484,8 +484,6 @@ int State::recv_message(int socket)
         return err;
     }
 
-    std::cout << "message var: " << var << "\n";
-
     // Check if the variable exists.
     if (vars.find(var) == vars.end())
     {
@@ -519,6 +517,7 @@ int State::recv_message(int socket)
 
     // Update the size of the variable.
     vars[var].size = var_data_size / type_size(vars[var].type);
+    vars[var].last_updated = std::chrono::system_clock::now();
 
     var_cvs[var].notify_all();
 
@@ -584,8 +583,6 @@ int State::recv_interest(int socket)
         return err;
     }
 
-    std::cout << "interest var: " << var << "\n";
-
     // Check if the variable exists.
     if (vars.find(var) == vars.end())
     {
@@ -622,6 +619,7 @@ int State::recv_interest(int socket)
 
         // Update the size of the variable.
         vars[var].size = var_data_size / type_size(vars[var].type);
+        vars[var].last_updated = std::chrono::system_clock::now();
 
         var_cvs[var].notify_all();
     }
@@ -629,6 +627,7 @@ int State::recv_interest(int socket)
     else
     {
         // Add the socket to the subscriber list.
+        std::unique_lock lk(subscriber_list_m);
         subscriber_list[var].push_back(socket);
     }
 
@@ -702,4 +701,17 @@ int State::request_update(int socket, std::string var, void *data, int data_size
     }
 
     return 0;
+}
+
+void State::check_var_exists(std::string var)
+{
+    if (vars.find(var) == vars.end())
+    {
+        throw std::runtime_error("Variable " + var + " does not exist.");
+    }
+
+    if (vars[var].owner_socket < 0 && vars[var].owner != self)
+    {
+        throw std::runtime_error("Variable " + var + " has no owner registered.");
+    }
 }

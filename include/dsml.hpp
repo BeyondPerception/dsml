@@ -87,7 +87,7 @@ namespace dsml
             {
                 if (send_interest(vars[var].owner_socket, var) < 0)
                 {
-                    // Do some error reporting.
+                    throw std::runtime_error("Owner of '" + var + "', '" + vars[var].owner + "', is no longer connected.");
                 }
                 interested_vars.insert(var);
                 var_cvs[var].wait(lk);
@@ -115,7 +115,7 @@ namespace dsml
             {
                 if (send_interest(vars[var].owner_socket, var) < 0)
                 {
-                    // Do some error reporting.
+                    throw std::runtime_error("Owner of '" + var + "', '" + vars[var].owner + "', is no longer connected.");
                 }
                 interested_vars.insert(var);
                 var_cvs[var].wait(lk);
@@ -155,11 +155,15 @@ namespace dsml
             // Check if this program owns the variable.
             if (self != vars[var].owner)
             {
-                request_update(vars[var].owner_socket, var, &value, sizeof(value));
+                if (request_update(vars[var].owner_socket, var, &value, sizeof(value)) < 0)
+                {
+                    throw std::runtime_error("Owner of '" + var + "', '" + vars[var].owner + "', is no longer connected.");
+                }
                 return;
             }
 
             *static_cast<T *>(vars[var].data) = value;
+            vars[var].last_updated = std::chrono::system_clock::now();
             var_cvs[var].notify_all();
 
             lk.unlock();
@@ -183,7 +187,10 @@ namespace dsml
             // Check if this program owns the variable.
             if (self != vars[var].owner)
             {
-                request_update(vars[var].owner_socket, var, value.data(), value.size() * sizeof(T));
+                if (request_update(vars[var].owner_socket, var, value.data(), value.size() * sizeof(T)) < 0)
+                {
+                    throw std::runtime_error("Owner of '" + var + "', '" + vars[var].owner + "', is no longer connected.");
+                }
                 return;
             }
 
@@ -191,6 +198,7 @@ namespace dsml
             vars[var].data = malloc(value.size() * sizeof(T));
             vars[var].size = value.size();
             memcpy(vars[var].data, value.data(), value.size() * sizeof(T));
+            vars[var].last_updated = std::chrono::system_clock::now();
             var_cvs[var].notify_all();
 
             lk.unlock();
@@ -216,23 +224,61 @@ namespace dsml
         void wait(std::string var)
         {
             std::unique_lock lk(var_locks[var]);
+
+            check_var_exists(var);
+
+            // Tell the owner that we are interested in this variable.
+            if (vars[var].owner != self && interested_vars.find(var) == interested_vars.end())
+            {
+                if (send_interest(vars[var].owner_socket, var) < 0)
+                {
+                    throw std::runtime_error("Owner of '" + var + "', '" + vars[var].owner + "', is no longer connected.");
+                }
+                interested_vars.insert(var);
+            }
+
             var_cvs[var].wait(lk);
         }
 
         /**
          * Waits for `rel_time` or until `var` is changed.
          *
-         * @tparam Rep Number of ticks.
-         * @tparam Period Tick period.
          * @param var Name of the variable.
-         * @param rel_time Maximum duration to wait.
+         * @param rel_time Maximum duration to wait in the same style as 
+         *                 std::condition_variable::wait_for.
+         * 
          * @return Whether the variable was changed.
          */
         template <class Rep, class Period>
         bool wait_for(std::string var, const std::chrono::duration<Rep, Period> &rel_time)
         {
             std::unique_lock lk(var_locks[var]);
+
+            check_var_exists(var);
+
+            // Tell the owner that we are interested in this variable.
+            if (vars[var].owner != self && interested_vars.find(var) == interested_vars.end())
+            {
+                if (send_interest(vars[var].owner_socket, var) < 0)
+                {
+                    throw std::runtime_error("Owner of '" + var + "', '" + vars[var].owner + "', is no longer connected.");
+                }
+                interested_vars.insert(var);
+            }
+
             return var_cvs[var].wait_for(lk, rel_time) == std::cv_status::no_timeout;
+        }
+
+        /**
+         * Returns when `var` was last updated.
+         */
+        std::chrono::time_point<std::chrono::system_clock> last_updated(std::string var)
+        {
+            std::unique_lock lk(var_locks[var]);
+
+            check_var_exists(var);
+
+            return vars[var].last_updated;
         }
 
     private:
@@ -359,6 +405,7 @@ namespace dsml
             std::string owner;
             int owner_socket;
             void *data;
+            std::chrono::time_point<std::chrono::system_clock> last_updated;
         };
 
         /**
@@ -464,6 +511,13 @@ namespace dsml
          * @param var Name of the variable.
          */
         void notify_subscribers(std::string var);
+        
+        /**
+         * Check if a variable exists.
+         *
+         * @param var Name of the variable.
+         */
+        void check_var_exists(std::string var);
 
         /**
          * Check if a variable exists and is of the correct type.
@@ -474,15 +528,7 @@ namespace dsml
         template <typename T>
         void check_var_type(std::string var)
         {
-            if (vars.find(var) == vars.end())
-            {
-                throw std::runtime_error("Variable " + var + " does not exist.");
-            }
-
-            if (vars[var].owner_socket < 0 && vars[var].owner != self)
-            {
-                throw std::runtime_error("Variable " + var + " has no owner registered.");
-            }
+            check_var_exists(var);
 
             Variable v = vars[var];
 
