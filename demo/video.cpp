@@ -18,17 +18,19 @@ int main(int argc, char *argv[])
 
     dsml.register_owner("DN", "127.0.0.1", 1112);
 
-    cv::VideoCapture cap(0);
-    if (!cap.isOpened()) {
+    cv::VideoCapture cap(1);
+    if (!cap.isOpened())
+    {
         std::cerr << "Couldn't open video capture device\n";
         return -1;
     }
 
-    while (true) {
+    while (true)
+    {
         cv::Mat frame, gray;
         cap >> frame;
         cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-        std::vector<uint8_t> image_data (gray.data, gray.data + gray.rows * gray.cols);
+        std::vector<uint8_t> image_data(gray.data, gray.data + gray.rows * gray.cols);
         dsml.set("IMAGE_DATA", image_data);
         dsml.set("IMAGE_ROWS", gray.rows);
         dsml.set("IMAGE_COLS", gray.cols);
@@ -39,9 +41,17 @@ int main(int argc, char *argv[])
         auto det2 = dsml.get<std::vector<double>>("DET_POINT_3");
         auto det3 = dsml.get<std::vector<double>>("DET_POINT_4");
 
-        if (det0[0] == -1) {
+        std::cout << "DETECTED POINTS:\n"
+                  << det0[0] << " " << det0[1] << "\n"
+                  << det1[0] << " " << det1[1] << "\n"
+                  << det2[0] << " " << det2[1] << "\n"
+                  << det3[0] << " " << det3[1] << "\n";
+
+        if (det0[0] == -1)
+        {
             cv::imshow("Video", frame);
-            if (cv::waitKey(30) >= 0) {
+            if (cv::waitKey(30) >= 0)
+            {
                 break;
             }
             std::this_thread::sleep_for(std::chrono::microseconds(41666));
@@ -49,20 +59,21 @@ int main(int argc, char *argv[])
         }
 
         cv::line(frame, cv::Point(det0[0], det0[1]),
-                     cv::Point(det1[0], det1[1]),
-                     cv::Scalar(0, 0xff, 0), 8);
+                 cv::Point(det1[0], det1[1]),
+                 cv::Scalar(0, 0xff, 0), 8);
         cv::line(frame, cv::Point(det0[0], det0[1]),
-                     cv::Point(det3[0], det3[1]),
-                    cv::Scalar(0, 0, 0xff), 8);
+                 cv::Point(det3[0], det3[1]),
+                 cv::Scalar(0, 0, 0xff), 8);
         cv::line(frame, cv::Point(det1[0], det1[1]),
-                     cv::Point(det2[0], det2[1]),
-                    cv::Scalar(0xff, 0, 0), 8);
+                 cv::Point(det2[0], det2[1]),
+                 cv::Scalar(0xff, 0, 0), 8);
         cv::line(frame, cv::Point(det2[0], det2[1]),
-                     cv::Point(det3[0], det3[1]),
-                    cv::Scalar(0xff, 0, 0), 8);
+                 cv::Point(det3[0], det3[1]),
+                 cv::Scalar(0xff, 0, 0), 8);
 
         cv::imshow("Video", frame);
-        if (cv::waitKey(30) >= 0) {
+        if (cv::waitKey(30) >= 0)
+        {
             break;
         }
 

@@ -1,8 +1,8 @@
 #include <iostream>
 
+#include "apriltag_pose.h"
 #include "apriltag.h"
 #include "tag36h11.h"
-#include "apriltag_pose.h"
 
 #include <dsml.hpp>
 
@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     auto sent = dsml.get<uint8_t>("IMAGE_SENT");
 
     apriltag_family_t *tf = tag36h11_create();
-    apriltag_detector_t *td = apriltag_detector_create();   
+    apriltag_detector_t *td = apriltag_detector_create();
     apriltag_detector_add_family(td, tf);
 
     while (true)
@@ -36,10 +36,11 @@ int main(int argc, char *argv[])
         auto rows = dsml.get<int>("IMAGE_ROWS");
         auto cols = dsml.get<int>("IMAGE_COLS");
 
-        image_u8_t im = { .width = cols,
+        image_u8_t im = {
+            .width = cols,
             .height = rows,
             .stride = cols,
-            .buf = image_data.data()
+            .buf = image_data.data(),
         };
 
         zarray_t *detections = apriltag_detector_detect(td, &im);
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        apriltag_detection* det;
+        apriltag_detection *det;
         zarray_get(detections, 0, &det);
 
         dsml.set("DET_POINT_1", std::vector<double>{det->p[0][0], det->p[0][1]});
