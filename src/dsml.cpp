@@ -451,12 +451,12 @@ void State::notify_subscribers(std::string var)
     }
 }
 
-int read_all_bytes(int socket, void* buf, size_t size)
+int read_all_bytes(int socket, void *buf, size_t size)
 {
     size_t bytes_read = 0;
     while (bytes_read < size)
     {
-        int ret = read(socket, (char*) buf + bytes_read, size - bytes_read);
+        int ret = read(socket, (char *)buf + bytes_read, size - bytes_read);
         if (ret < 0)
         {
             return ret;

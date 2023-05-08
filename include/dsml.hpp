@@ -244,9 +244,9 @@ namespace dsml
          * Waits for `rel_time` or until `var` is changed.
          *
          * @param var Name of the variable.
-         * @param rel_time Maximum duration to wait in the same style as 
-         *                 std::condition_variable::wait_for.
-         * 
+         * @param rel_time Maximum duration to wait in the same style as
+         *                 `std::condition_variable::wait_for`.
+         *
          * @return Whether the variable was changed.
          */
         template <class Rep, class Period>
@@ -401,7 +401,7 @@ namespace dsml
         {
             Type type;
             bool is_array;
-            int size; // if isArray, then the number of elements in the array.
+            int size; // If `is_array`, then the number of elements in the array.
             std::string owner;
             int owner_socket;
             void *data;
@@ -511,7 +511,7 @@ namespace dsml
          * @param var Name of the variable.
          */
         void notify_subscribers(std::string var);
-        
+
         /**
          * Check if a variable exists.
          *
