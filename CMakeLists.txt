@@ -11,7 +11,7 @@ add_library(dsml src/dsml.cpp)
 add_executable(test test/test.cpp)
 target_link_libraries(test dsml)
 
-# Demo executables
+# Demo Executables
 
 find_package(OpenCV)
 
