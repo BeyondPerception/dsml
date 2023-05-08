@@ -1,14 +1,25 @@
-# A Distributed State Management Library
+# DSML: Distributed State Management Library
 
-Part 1: Simple pub/sub
+## Build Information
 
-- `create(), register(), get(), set()`
-- Single writer, many readers
-- Static config file defining all shared variables
+This project uses CMake to generate build files. All you need is `cmake`, `make` (or your build system of choice), `opencv2` (for the demo), and a working `c++` compiler.
 
-Future Extensions:
-- Distributed locking/signaling
-- Multiple writers (still single source of truth, but "readers" can make a request to change a variable).
-- Dynamic variable definition? (I don't like)
+Execute the following commands to compile the system:
 
-Design decisions:
+```
+mkdir build
+cd build
+cmake ../
+make dsml         # To compile DSML
+make test         # To compile the unit tests
+make video_demo   # To compile the video demo
+make process_demo # To compile the process demo
+```
+
+Execute the following commands to run the files:
+
+```
+./test         # To run the unit tests
+./video_demo   # To run the video demo
+./process_demo # To run the process demo
+```
