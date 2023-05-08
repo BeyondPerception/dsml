@@ -2,7 +2,7 @@
 
 ## Build Information
 
-This project uses CMake to generate build files. All you need is `cmake`, `make` (or your build system of choice), `opencv2` (for the demo), and a working `c++` compiler.
+This project uses CMake to generate build files. All you need is `cmake`, `make` (or your build system of choice), and a working `c++` compiler. You will also need `opencv2` and the `apriltag` library in order to build the video and process demos, respectively.
 
 Execute the following commands to compile the system:
 
@@ -23,3 +23,22 @@ Execute the following commands to run the files:
 ./video_demo   # To run the video demo
 ./process_demo # To run the process demo
 ```
+
+## API Guide
+
+The following methods are available to a `dsml::State` instance:
+
+```
+State(config, program_name, port = 0)
+register_owner(variable_owner, owner_ip, owner_port)
+get(var)
+get(var, ret_value)
+set(var, value)
+wait(var)
+wait_for(var, rel_time)
+last_updated(var)
+```
+
+## Demo Guide
+
+
