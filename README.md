@@ -39,6 +39,8 @@ wait_for(var, rel_time)
 last_updated(var)
 ```
 
-## Demo Guide
+<!-- Each program that ... needs a configuration file. -->
+
+<!-- ## Demo Guide -->
 
 
