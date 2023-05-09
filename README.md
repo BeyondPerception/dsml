@@ -24,7 +24,13 @@ Execute the following commands to run the files:
 ./process_demo # To run the process demo
 ```
 
-## API Guide
+## Demo Information
+
+After compiling the system, execute `./video_demo` and `./process_demo` to run the video and process demos, respectively. Press any key to start the  process demo, and then press any key to start the video demo. A video feed should appear and highlight any visible AprilTags with their appropriate locations and orientations.
+
+When running across multiple computers, make sure to update the IP addresses in `process.cpp` and `video.cpp` accordingly. This is required to ensure that the correct variable owners are registered.
+
+## API Information
 
 The following methods are available to a `dsml::State` instance:
 
@@ -38,9 +44,3 @@ wait(var)
 wait_for(var, rel_time)
 last_updated(var)
 ```
-
-<!-- Each program that ... needs a configuration file. -->
-
-<!-- ## Demo Guide -->
-
-
